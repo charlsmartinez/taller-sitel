@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taller Manager — Panel en la Nube</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0c1b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Taller Manager">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root{
+  --bg:#0d0f20; --surface:#191c33; --surface2:#14162b; --ink:#e8ebf7; --muted:#8b93b8; --line:rgba(255,255,255,.08);
+  --cyan:#00d0e6; --indigo:#5f8bff; --ok:#22d39a; --warn:#f5b800; --danger:#ff5a6a; --pink:#ff5fa2; --purple:#a97bff;
+  --font:'Inter','Segoe UI',sans-serif;
+}
+*{ box-sizing:border-box; margin:0; padding:0; font-family:var(--font); }
+body{ background:radial-gradient(1100px 600px at 85% -12%, #23284f 0%, transparent 55%), linear-gradient(160deg,#141733,var(--bg)); color:var(--ink); display:flex; height:100vh; overflow:hidden; -webkit-font-smoothing:antialiased; }
+#login{ position:fixed; inset:0; background:linear-gradient(160deg,#1b1e3d,#0f1124); display:flex; align-items:center; justify-content:center; z-index:999; padding:20px; }
+.lcard{ background:linear-gradient(180deg,#20244a,#191c3c); border:1px solid var(--line); border-radius:20px; padding:40px 36px; width:100%; max-width:380px; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.6); }
+.lcard h1{ font-size:13px; letter-spacing:2.5px; font-weight:800; background:linear-gradient(90deg,#7ee8f2,var(--cyan)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.lcard p.sub{ color:var(--muted); font-size:13px; margin:2px 0 24px; }
+input,select,textarea{ color-scheme:dark; width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:11px; background:#12142b; color:var(--ink); font-size:14px; outline:none; margin-bottom:13px; transition:.15s; font-family:var(--font); }
+input:focus,select:focus,textarea:focus{ border-color:var(--cyan); box-shadow:0 0 0 4px rgba(0,208,230,.14); }
+select option{ background:#191c33; }
+label{ display:block; text-align:left; font-size:12px; font-weight:600; color:#c3cae8; margin-bottom:6px; }
+.btn{ border:none; border-radius:11px; font-weight:800; cursor:pointer; transition:.15s; }
+.btn-main{ width:100%; padding:13px; background:linear-gradient(135deg,var(--indigo),var(--cyan)); color:#04121a; font-size:15px; box-shadow:0 8px 22px rgba(95,139,255,.4); }
+.btn-main:active{ transform:translateY(1px); } .btn-main:disabled{ opacity:.5; }
+.lmsg{ color:var(--danger); font-size:13px; margin-top:12px; font-weight:600; min-height:16px; }
+.sidebar{ width:240px; background:linear-gradient(180deg,#161933,#0f1124); display:flex; flex-direction:column; padding:24px 0; border-right:1px solid var(--line); }
+.brand{ text-align:center; padding:0 14px 18px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+.brand h2{ font-size:16px; font-weight:800; background:linear-gradient(90deg,#7ee8f2,var(--cyan)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.brand .sub{ font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#aeb6d4; font-weight:600; }
+.brand .ver{ font-size:10px; color:#7b8cae; margin-top:6px; }
+.live{ display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--ok); margin-top:8px; font-weight:700; }
+.live .dot{ width:8px; height:8px; border-radius:50%; background:var(--ok); animation:pulse 1.8s infinite; }
+@keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(34,211,154,.5);} 70%{box-shadow:0 0 0 8px rgba(34,211,154,0);} 100%{box-shadow:0 0 0 0 rgba(34,211,154,0);} }
+.who{ padding:14px 20px; font-size:12px; color:var(--muted); }
+.who b{ color:var(--ink); display:block; font-size:13px; }
+.admin-tools{ margin-top:auto; padding:18px; border-top:1px solid var(--line); }
+.btn-logout{ width:100%; padding:11px; background:rgba(255,255,255,.05); color:#c2c8e4; border:1px solid rgba(255,255,255,.14); border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; }
+.btn-logout:hover{ background:rgba(255,90,106,.9); color:#fff; }
+.main{ flex:1; display:flex; flex-direction:column; overflow-y:auto; }
+header{ background:rgba(18,20,40,.72); backdrop-filter:blur(10px); padding:16px 28px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:20; }
+header h1{ font-size:21px; font-weight:800; }
+.body{ padding:26px 28px; }
+.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:24px; }
+.kpi{ position:relative; background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-top:3px solid var(--cyan); border-radius:14px; padding:16px; transition:.2s; }
+.kpi:hover{ transform:translateY(-3px); box-shadow:0 16px 40px rgba(0,0,0,.4); }
+.kpi.b{ border-top-color:var(--warn);} .kpi.c{ border-top-color:var(--indigo);} .kpi.d{ border-top-color:var(--pink);} .kpi.e{ border-top-color:var(--ok);} .kpi.f{ border-top-color:var(--danger);} .kpi.g{ border-top-color:var(--purple);}
+.kpi .t{ font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; margin-bottom:6px; }
+.kpi .v{ font-size:23px; font-weight:800; font-variant-numeric:tabular-nums; }
+.board{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-radius:14px; padding:20px; }
+.board-top{ display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+.board-top select,.board-top input{ margin-bottom:0; width:auto; min-width:170px; }
+table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+th{ text-align:left; padding:10px; font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); border-bottom:1.5px solid var(--line); white-space:nowrap; }
+td{ padding:12px 10px; border-bottom:1px solid var(--line); }
+tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255,255,255,.035); }
+.sub{ font-size:11px; color:var(--muted); }
+.badge{ padding:6px 10px; border-radius:8px; font-weight:700; font-size:11px; color:#fff; display:inline-block; white-space:nowrap; }
+.panel{ position:fixed; top:0; right:-820px; width:760px; max-width:97vw; height:100%; background:linear-gradient(180deg,#181b36,#12142b); border-left:1px solid var(--line); box-shadow:-14px 0 50px rgba(0,0,0,.6); transition:right .32s cubic-bezier(.4,0,.2,1); z-index:90; padding:28px; overflow-y:auto; }
+.panel.open{ right:0; }
+.pclose{ float:right; cursor:pointer; color:var(--muted); font-weight:700; padding:5px 10px; border-radius:8px; }
+.pclose:hover{ background:rgba(255,255,255,.06); color:#fff; }
+.info{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 18px; background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0 20px; }
+.info .l{ font-size:9.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:600; }
+.info .vv{ font-size:13.5px; font-weight:700; }
+.pipe{ display:flex; gap:3px; margin:16px 0; flex-wrap:wrap; }
+.st{ flex:1; min-width:52px; text-align:center; font-size:8px; font-weight:700; padding:7px 3px; border-radius:7px; background:rgba(255,255,255,.05); color:#7c85a8; border-bottom:2px solid rgba(255,255,255,.1); line-height:1.2; }
+.st.done{ background:rgba(34,211,154,.14); color:#3fe0ad; border-bottom-color:var(--ok); }
+.st.cur{ background:linear-gradient(135deg,rgba(245,184,0,.25),rgba(245,184,0,.12)); color:#ffd75e; border-bottom-color:#f5b800; box-shadow:0 0 0 1px #f5b800 inset; }
+.sect-h{ font-size:11.5px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); font-weight:700; margin:22px 0 10px; display:flex; align-items:center; gap:8px; }
+.sect-h::after{ content:''; flex:1; height:1px; background:var(--line); }
+.gal{ display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px; }
+.gitem{ position:relative; padding-top:100%; border-radius:10px; overflow:hidden; border:1px solid var(--line); background:#0f1226; }
+.gitem img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; cursor:pointer; }
+.det-orden{ border:1px solid var(--line); border-radius:11px; margin-bottom:14px; background:rgba(255,255,255,.02); }
+.det-orden summary{ cursor:pointer; padding:11px 15px; font-size:12px; font-weight:800; color:#a9b3d6; letter-spacing:.3px; list-style:none; display:flex; align-items:center; justify-content:space-between; user-select:none; }
+.det-orden summary::-webkit-details-marker{ display:none; }
+.det-orden summary::after{ content:'▾'; font-size:11px; opacity:.7; transition:.2s; }
+.det-orden[open] summary::after{ transform:rotate(180deg); }
+.det-orden summary:hover{ color:#fff; background:rgba(255,255,255,.04); border-radius:11px; }
+.det-orden .info, .det-orden .sect-h, .det-orden > div{ margin-left:15px; margin-right:15px; }
+.det-orden[open]{ padding-bottom:12px; }
+.ok-flash{ border-color:#22d39a !important; box-shadow:0 0 0 2px rgba(34,211,154,.25) !important; }
+.upgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(178px,1fr)); gap:6px; margin-top:8px; }
+.up-sm{ padding:9px 10px !important; font-size:11px !important; line-height:1.3; min-height:auto !important; text-align:center; }
+.up-sm span{ display:block; }
+.gitem .doc{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; text-decoration:none; background:linear-gradient(160deg,#1a1f3d,#0f1226); cursor:pointer; }
+.gitem .doc:hover{ background:linear-gradient(160deg,#232a52,#161a35); }
+.gitem .doc .i{ font-size:26px; line-height:1; }
+.gitem .doc .e{ font-size:8px; font-weight:800; letter-spacing:1px; color:var(--cyan); }
+.gitem .dl{ position:absolute; top:5px; right:5px; z-index:3; width:22px; height:22px; border-radius:6px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; text-decoration:none; opacity:0; transition:.15s; }
+.gitem:hover .dl{ opacity:1; }
+.gitem .dl:hover{ background:var(--cyan); color:#04202a; }
+.gitem .tg{ position:absolute; bottom:0; width:100%; text-align:center; font-size:8px; color:#fff; background:rgba(0,208,230,.85); font-weight:700; padding:2px 0; }
+.gitem.entrega .tg{ background:rgba(34,211,154,.9); color:#04331f; }
+.gitem.pieza .tg{ background:rgba(169,123,255,.9); }
+.ptable{ width:100%; font-size:12.5px; margin-top:6px; }
+.ptable th{ font-size:9.5px; padding:7px 5px; }
+.ptable td{ padding:7px 5px; }
+.ptable input{ margin-bottom:0; padding:7px 9px; font-size:12.5px; }
+.gate{ background:rgba(245,184,0,.10); border:1px solid rgba(245,184,0,.3); border-radius:11px; padding:14px; margin:16px 0; font-size:13px; color:#ffd75e; }
+.gate.ok{ background:rgba(34,211,154,.1); border-color:rgba(34,211,154,.3); color:#3fe0ad; }
+.btn-adv{ background:linear-gradient(135deg,#0e9f6e,#22d39a); color:#04331f; padding:12px 20px; font-weight:800; border-radius:11px; border:none; cursor:pointer; font-size:14px; }
+.btn-adv:disabled{ background:rgba(255,255,255,.1); color:#6b7292; cursor:not-allowed; }
+.btn-back{ background:rgba(255,255,255,.06); color:#a9b3d6; border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:12px; font-weight:700; cursor:pointer; margin-right:7px; }
+.btn-back:hover{ background:rgba(255,255,255,.12); color:#fff; }
+.btn-rej{ background:rgba(255,90,106,.12); color:#ff8f9a; border:1px solid rgba(255,90,106,.35); padding:11px 16px; font-weight:700; border-radius:11px; cursor:pointer; font-size:13px; margin-left:8px; }
+.btn-gar{ background:rgba(169,123,255,.12); color:#c9adff; border:1px solid rgba(169,123,255,.35); padding:11px 16px; font-weight:700; border-radius:11px; cursor:pointer; font-size:13px; margin-left:8px; }
+.up{ border:2px dashed var(--indigo); border-radius:11px; padding:13px; text-align:center; color:#9fb6ff; font-weight:600; cursor:pointer; font-size:12.5px; margin:8px 0; background:rgba(95,139,255,.08); display:block; }
+.up input{ display:none; }
+.money{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:12px 0; }
+.mbox{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:11px; padding:12px; text-align:center; }
+.mbox .ml{ font-size:9.5px; text-transform:uppercase; color:var(--muted); font-weight:600; letter-spacing:.4px; }
+.mbox .mv{ font-size:16px; font-weight:800; margin-top:4px; font-variant-numeric:tabular-nums; }
+.mbox.util .mv{ color:var(--ok); } .mbox.tot .mv{ color:var(--cyan); }
+.sug{ background:rgba(0,208,230,.07); border:1px solid rgba(0,208,230,.25); border-radius:10px; padding:11px 13px; font-size:12px; color:#8fe6f2; margin:8px 0 12px; }
+.sug b{ color:var(--cyan); }
+.btn-sm{ background:rgba(95,139,255,.15); color:#9fb6ff; border:1px solid rgba(95,139,255,.35); border-radius:8px; padding:6px 11px; font-size:11.5px; font-weight:700; cursor:pointer; }
+.lb{ display:none; position:fixed; inset:0; background:rgba(4,6,16,.9); z-index:200; align-items:center; justify-content:center; }
+.lb img{ max-width:90%; max-height:85vh; border-radius:10px; }
+.hide{ display:none !important; }
+.navi{ display:flex; align-items:center; gap:9px; padding:11px 13px; margin:3px 0; border-radius:10px; cursor:pointer; font-size:13px; font-weight:600; color:#c2c8e4; transition:.15s; }
+.navi:hover{ background:rgba(255,255,255,.05); }
+.navi.on{ background:linear-gradient(90deg,rgba(0,208,230,.18),rgba(95,139,255,.08)); color:#fff; box-shadow:inset 3px 0 0 var(--cyan); }
+.pgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+.pcard{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-radius:14px; padding:16px; transition:.18s; }
+.pcard:hover{ transform:translateY(-3px); border-color:rgba(0,208,230,.35); box-shadow:0 14px 32px rgba(0,0,0,.35); }
+.pcard h4{ font-size:14.5px; font-weight:800; margin-bottom:5px; line-height:1.3; }
+.pcard .tipo{ display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; padding:3px 8px; border-radius:6px; margin-bottom:8px; }
+.tipo.refa{ background:rgba(0,208,230,.15); color:var(--cyan); border:1px solid rgba(0,208,230,.3); }
+.tipo.llan{ background:rgba(169,123,255,.15); color:#c9adff; border:1px solid rgba(169,123,255,.3); }
+.pcard .row{ font-size:12px; color:var(--muted); margin:5px 0; display:flex; gap:7px; line-height:1.4; }
+.pcard .row b{ color:#c3cae8; font-weight:600; }
+.stars{ color:#f5b800; font-weight:800; font-size:12.5px; }
+.pcard .acts{ display:flex; gap:8px; margin-top:12px; }
+.pcard a.btn-map{ flex:1; text-align:center; text-decoration:none; background:rgba(95,139,255,.15); color:#9fb6ff; border:1px solid rgba(95,139,255,.35); border-radius:9px; padding:8px; font-size:11.5px; font-weight:700; transition:.15s; }
+.pcard a.btn-map:hover{ background:rgba(95,139,255,.28); }
+.pcard a.btn-tel{ flex:1; text-align:center; text-decoration:none; background:rgba(34,211,154,.13); color:#3fe0ad; border:1px solid rgba(34,211,154,.3); border-radius:9px; padding:8px; font-size:11.5px; font-weight:700; transition:.15s; }
+.pcard a.btn-tel:hover{ background:rgba(34,211,154,.25); }
+.sede-h{ font-size:11px; text-transform:uppercase; letter-spacing:1.4px; color:var(--cyan); font-weight:800; margin:22px 0 12px; display:flex; align-items:center; gap:10px; }
+.sede-h::after{ content:''; flex:1; height:1px; background:var(--line); }
+.spin{ display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:sp .7s linear infinite; vertical-align:middle; }
+@keyframes sp{ to{ transform:rotate(360deg);} }
+@media (max-width:820px){
+  body{ flex-direction:column; height:auto; min-height:100vh; overflow:auto; }
+  .sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px 12px; padding:12px 14px; border-right:none; border-bottom:1px solid var(--line); }
+  .sidebar .brand{ width:100%; text-align:center; }
+  .sidebar .brand h2{ font-size:15px; }
+  .sidebar > div[style*="flex:1"], .sidebar > .grow{ display:none; }
+  .navi{ margin:0; padding:9px 14px; }
+  .main{ overflow:visible; }
+  header{ padding:12px 16px; flex-wrap:wrap; gap:6px; position:static; }
+  .board{ padding:14px; }
+  .kpis{ grid-template-columns:repeat(2,1fr); gap:10px; }
+  .kpi .v{ font-size:19px; }
+  .kpi .t{ font-size:9.5px; }
+  .info{ grid-template-columns:1fr 1fr; }
+  .money{ grid-template-columns:1fr 1fr; }
+  .board-top > *{ flex:1 1 100%; min-width:0; }
+  .pgrid{ grid-template-columns:1fr; }
+  table{ white-space:nowrap; }
+}
+@media (max-width:480px){
+  .info{ grid-template-columns:1fr; }
+  .kpi .v{ font-size:17px; }
+}
+.selbar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 22px; background:rgba(255,255,255,.03); border:1px solid var(--line); border-left:3px solid var(--cyan); border-radius:10px; padding:11px 16px; margin-bottom:14px; font-size:12.5px; }
+.selbar.filtrado{ background:rgba(0,208,230,.07); border-color:rgba(0,208,230,.35); border-left-color:var(--cyan); }
+.selbar .sl{ color:var(--muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; font-weight:700; margin-right:5px; }
+.selbar .sv{ font-weight:800; font-variant-numeric:tabular-nums; }
+.selbar .tag{ background:rgba(0,208,230,.15); border:1px solid rgba(0,208,230,.4); color:var(--cyan); border-radius:999px; padding:3px 11px; font-size:11px; font-weight:700; }
+.selbar .limpiar{ background:none; border:1px solid var(--line); color:var(--muted); border-radius:8px; padding:4px 10px; font-size:11px; cursor:pointer; font-weight:600; }
+.selbar .limpiar:hover{ border-color:var(--cyan); color:var(--cyan); }
+@media (max-width:820px){ .selbar{ gap:6px 14px; font-size:11.5px; padding:10px 12px; } }
+.kpi.click{ cursor:pointer; transition:transform .12s, box-shadow .12s, border-color .12s; }
+.kpi.click:hover{ transform:translateY(-2px); border-color:rgba(0,208,230,.45); box-shadow:0 8px 24px rgba(0,0,0,.35); }
+.kpi.click::after{ content:'▸ ver'; position:absolute; top:10px; right:12px; font-size:9px; font-weight:700; color:var(--muted); opacity:0; transition:opacity .12s; }
+.kpi.click:hover::after{ opacity:.75; }
+.kpi.click.activo{ border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan) inset, 0 8px 26px rgba(0,208,230,.18); }
+.kpi.click.activo::after{ content:'✕ quitar'; opacity:.9; color:var(--cyan); }
+.kpi .sh{ font-size:9.5px; color:var(--muted); margin-top:4px; line-height:1.3; opacity:.75; }
+@media (max-width:820px){ .kpi.click{ cursor:pointer; transition:transform .12s, box-shadow .12s, border-color .12s; }
+.kpi.click:hover{ transform:translateY(-2px); border-color:rgba(0,208,230,.45); box-shadow:0 8px 24px rgba(0,0,0,.35); }
+.kpi.click::after{ content:'▸ ver'; position:absolute; top:10px; right:12px; font-size:9px; font-weight:700; color:var(--muted); opacity:0; transition:opacity .12s; }
+.kpi.click:hover::after{ opacity:.75; }
+.kpi.click.activo{ border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan) inset, 0 8px 26px rgba(0,208,230,.18); }
+.kpi.click.activo::after{ content:'✕ quitar'; opacity:.9; color:var(--cyan); }
+.kpi .sh{ display:none; } }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="lcard">
+    <img src="logo.png" alt="SITEL Taller Mecánico" style="width:132px;height:auto;margin:0 auto 12px;display:block;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5));">
+    <h1>SITEL AUTOMOTRIZ</h1><p class="sub">Taller Manager · Panel en la nube</p>
+    <label>Correo</label><input type="email" id="l-email" autocomplete="username">
+    <label>Contraseña</label><input type="password" id="l-pass" autocomplete="current-password">
+    <button class="btn btn-main" id="l-btn" onclick="login()">Ingresar</button>
+    <div class="lmsg" id="l-msg"></div>
+  </div>
+</div>
+
+<div class="sidebar hide" id="sb-side">
+  <div class="brand">
+    <img src="logo.png" alt="SITEL Taller Mecánico" style="width:92px;height:auto;margin:0 auto 8px;display:block;filter:drop-shadow(0 2px 10px rgba(0,0,0,.45));">
+    <h2>SITEL AUTOMOTRIZ</h2><div class="sub">Taller Manager</div><div class="ver">v5.0 · Flujo 12 pasos</div>
+    <div class="live"><span class="dot"></span> En vivo</div>
+  </div>
+  <div class="who"><span>Sesión</span><b id="who-name">—</b><span id="who-rol">—</span></div>
+  <div style="padding:10px 14px;">
+    <div class="navi on" id="nav-ordenes" onclick="vista('ordenes')">📋 Órdenes</div>
+    <div class="navi" id="nav-prov" onclick="vista('proveedores')">🏪 Proveedores</div>
+  </div>
+  <div class="admin-tools">
+    <button class="btn-logout" onclick="abrirPw()" style="margin-bottom:8px;">🔑 Cambiar mi contraseña</button>
+    <button class="btn-logout" onclick="logout()">🔒 Cerrar sesión</button>
+  </div>
+</div>
+
+<div class="main hide" id="sb-main">
+  <header><h1>Dashboard General</h1><div class="sub" id="hdr-plaza"></div></header>
+  <div class="body">
+    <div id="v-ordenes">
+    <div class="kpis">
+      <div class="kpi"><div class="t">Total de Servicios</div><div class="v" id="k-total">0</div><div class="sh">En esta plaza</div></div>
+      <div class="kpi c click" id="kpi-auth" onclick="verGrupo('auth')" title="Ver estos servicios"><div class="t">En Proceso</div><div class="v" id="k-auth">0</div><div class="sh">Del diagnóstico a la entrega</div></div>
+      <div class="kpi b click" id="kpi-taller" onclick="verGrupo('taller')" title="Ver estos servicios"><div class="t">En Facturación</div><div class="v" id="k-taller">0</div><div class="sh">Entregado · en trámite de factura</div></div>
+      <div class="kpi d click" id="kpi-porfact" onclick="verGrupo('porfact')" title="Ver estos servicios"><div class="t">Factura Entregada</div><div class="v" id="k-porfact">0</div><div class="sh">Proceso cerrado · pagado</div></div>
+      <div class="kpi f dinero" id="kpi-costo"><div class="t">Costo Piezas</div><div class="v" id="k-costo">$0.00</div><div class="sh">Lo que se pagó a proveedores</div></div>
+      <div class="kpi g dinero" id="kpi-mo"><div class="t">Mano de Obra</div><div class="v" id="k-mo">$0.00</div><div class="sh">Trabajo cobrado</div></div>
+      <div class="kpi e dinero" id="kpi-venta"><div class="t">Total Facturado</div><div class="v" id="k-venta">$0.00</div><div class="sh">Cobrado al cliente</div></div>
+      <div class="kpi e dinero" id="kpi-util"><div class="t">Utilidad Bruta</div><div class="v" id="k-util">$0.00</div><div class="sh">Facturado − costo de piezas</div></div>
+    </div>
+    <div class="board">
+      <div class="board-top">
+        <select id="f-plaza" onchange="render()"><option value="Todos">📍 Todas las Plazas</option></select>
+        <select id="f-est" onchange="grupoActivo=null; render()"><option value="Todos">Todos los estatus</option></select>
+        <input type="text" id="f-buscar" placeholder="🔎 Buscar económico, serie, placas, OT..." oninput="render()">
+        <button onclick="exportarExcel()" style="margin-bottom:0;background:linear-gradient(135deg,#0e9f6e,#22d39a);color:#04331f;border:none;border-radius:10px;font-weight:800;cursor:pointer;padding:9px 16px;">📊 Exportar Excel</button>
+      </div>
+      <div id="sel-resumen" class="selbar"></div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>Económico / OT</th><th>Plaza</th><th>Vehículo</th><th>Diagnóstico</th><th>Total Cliente</th><th>Estatus</th><th>Acc.</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+    </div>
+    </div>
+
+    <div id="v-prov" class="hide">
+      <div class="board" style="margin-bottom:20px;">
+        <div class="board-top">
+          <select id="p-plaza" onchange="renderProv()"><option value="Todos">📍 Todas las Plazas</option></select>
+          <select id="p-tipo" onchange="renderProv()">
+            <option value="Todos">Todos los tipos</option>
+            <option value="Refaccionaria">Refaccionarias</option>
+            <option value="Llantera">Llanteras</option>
+          </select>
+          <input type="text" id="p-buscar" placeholder="🔎 Buscar proveedor..." oninput="renderProv()">
+          <span class="sub" id="p-count" style="margin-left:auto;"></span>
+        </div>
+      </div>
+      <div id="prov-body"></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel"></div>
+<div class="lb" id="lb" onclick="this.style.display='none'"><img id="lb-img"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>
+const SUPABASE_URL='https://weggfkvhjtxbzihgetzu.supabase.co';
+const SUPABASE_KEY='sb_publishable_ErvGJRqEMKRC9FdJuZ9mig_Bb7vOFxT';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ===== FLUJO DE 12 PASOS =====
+const PIPELINE=[
+ 'Diagnóstico','Cotización','Pendiente de Autorización','Autorizado',
+ 'Compra de Refacciones y Reparación','Reparado','Pendiente de OT','Auto Entregado',
+ 'Pendiente de Factura','Contabilidad Emitió Factura',
+ 'Se Envía Factura a Telmex','Factura Pagada'];
+const CORTO=['Diagnóstico','Cotización','Pend. Autoriz.','Autorizado','Compra y Rep.','Reparado','Pend. de OT','Entregado','Pend. Factura','Factura Emitida','Factura enviada TMX','Pagada'];
+const ESPECIALES=['No Autorizado / Rechazado','Garantía'];
+// Candados: estatus destino -> evidencias requeridas
+// La evidencia de cada paso se sube ESTANDO en ese paso y habilita el siguiente.
+// GATES[destino] = lo que debe existir del paso en el que estás parado.
+const GATES={
+ 'Pendiente de Autorización':['cotizacion'],                                   // del 2 (Cotización)
+ 'Autorizado':['envio_cotizacion'],                                            // del 3 (Pend. Autorización)
+ 'Compra de Refacciones y Reparación':['autorizacion'],                        // del 4 (Autorizado)
+ 'Reparado':['ticket_compra'],                                                 // del 5 (Compra y Reparación)
+ 'Pendiente de OT':['refacciones_usadas','refacciones_compradas','refacciones_montadas','entrega_frontal','entrega_lateralDer','entrega_lateralIzq','entrega_trasera','entrega_tablero','entrega_motor','entrega_odometro'], // del 6 (Reparado)
+ 'Auto Entregado':['correo_ot_cliente'],                                       // del 7 (Pend. de OT)
+ 'Pendiente de Factura':['formato_entrega_firmado','identificacion_receptor'], // del 8 (Entregado)
+ 'Contabilidad Emitió Factura':['factura_pdf','factura_xml'],                  // del 9: Contabilidad sube la factura
+ 'Se Envía Factura a Telmex':['acuse_recepcion_telmex'],                       // del 10: acuse de Telmex
+ 'Factura Pagada':[]                                                           // del 11: solo la fecha de pago
+};
+// Evidencias que aceptan VARIOS archivos
+const MULTI=['ticket_compra','refacciones_usadas','refacciones_compradas','refacciones_montadas','extra','pieza'];
+// Campos con valor propio en el paso 5
+const TIPO_REPARACION=['Local','Externo'];
+// Textos de los botones de avance
+const ETIQ_C={ot:'Número de OT', fecha_pago:'Fecha de pago', num_factura:'Número de factura', fecha_factura:'Fecha de la factura'};
+const TXT_BTN={
+  'Pendiente de Autorización':'Avanzar a Autorización',
+  'Auto Entregado':'Avanzar a entregar auto',
+  'Se Envía Factura a Telmex':'Factura enviada',
+  'Factura Pagada':'Cerrar: factura pagada'
+};
+const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
+ envio_cotizacion:'comprobante de envío de la cotización al cliente',
+ autorizacion:'foto del correo de autorización',
+ ticket_compra:'ticket o factura de compra de las refacciones',
+ refacciones_usadas:'refacciones que se quitaron',
+ refacciones_compradas:'refacciones cambiadas',
+ refacciones_montadas:'refacciones montadas',
+ unidad_lista:'foto de la unidad lista para entrega',correo_ot:'foto del correo con la OT',
+ correo_ot_cliente:'correo de la OT enviado por el cliente',
+ formato_entrega_firmado:'formato de entrega firmado',
+ identificacion_receptor:'identificación de quien recibe la unidad',
+ correo_recepcion_ot:'correo de recepción de la OT en contabilidad',
+ acuse_ot_contabilidad:'acuse de envío de la OT a contabilidad',
+ factura:'foto/PDF de la factura emitida',
+ factura_pdf:'factura en PDF',
+ factura_xml:'factura en XML',
+ acuse_recepcion_telmex:'acuse de recepción de la factura por Telmex',
+ acuse_envio_factura:'acuse de envío de la factura a Telmex',
+ comprobante_pago:'comprobante de pago',
+ entrega_frontal:'unidad lista: frontal',entrega_lateralDer:'unidad lista: lateral der.',entrega_lateralIzq:'unidad lista: lateral izq.',
+ entrega_trasera:'unidad lista: trasera',entrega_tablero:'unidad lista: tablero',entrega_motor:'unidad lista: motor',entrega_odometro:'unidad lista: odómetro'};
+// Campos requeridos por paso
+const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // la OT llega en el paso 7; la fecha de pago cierra en el 11
+const COLOR={'Diagnóstico':'#f5b800','Cotización':'#ff9800','Pendiente de Autorización':'#ff7a18','Autorizado':'#3b82f6',
+ 'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899',
+ 'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9',
+ 'Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#0e9f6e','No Autorizado / Rechazado':'#ff5a6a','Garantía':'#a97bff'};
+const ENTREGA=['frontal','lateralDer','lateralIzq','trasera','tablero','motor','odometro'];
+const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const norm=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+
+let profile=null, servicios=[], refs=[], evis=[], hist=[], diags=[], proveedores=[], activeId=null;
+const esAdmin=()=>profile&&(profile.rol==='admin'||profile.rol==='gerente');
+const puedeEditar=()=>profile&&(esAdmin()||profile.rol==='super');
+// Contabilidad: pasos 10, 11 y 13. El 12 (enviar factura a Telmex) es del generalista.
+const PASOS_CONTA=['Contabilidad Emitió Factura','Factura Pagada'];  // solo estos los activa Contabilidad (10 y 12)
+const puedeAvanzarA=(destino)=>{
+  if(!profile) return false;
+  if(esAdmin()) return true;                         // admin y gerente mueven cualquier paso...
+  if(PASOS_CONTA.includes(destino)) return false;
+  return profile.rol==='super';
+};
+// ...pero NADIE avanza sin la evidencia del paso (ni el admin)
+// El supervisor no ve montos de dinero; solo lo necesario para operar.
+const veDinero=()=>profile&&(esAdmin()||profile.rol==='contabilidad');
+
+async function login(){
+  const email=document.getElementById('l-email').value.trim(), pass=document.getElementById('l-pass').value;
+  const m=document.getElementById('l-msg'); m.textContent='';
+  const btn=document.getElementById('l-btn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span>';
+  const { data, error }=await sb.auth.signInWithPassword({ email, password:pass });
+  if(error){ m.textContent='Correo o contraseña incorrectos.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+  await iniciar(data.user); btn.disabled=false; btn.textContent='Ingresar';
+}
+async function iniciar(user){
+  const { data:prof }=await sb.from('tm_profiles').select('id,nombre,rol,plaza_id,tm_plazas(nombre)').eq('id',user.id).single();
+  if(!prof){ document.getElementById('l-msg').textContent='Usuario sin perfil.'; await sb.auth.signOut(); return; }
+  if(prof.rol!=='super' && prof.rol!=='admin' && prof.rol!=='gerente'){
+    document.getElementById('l-msg').textContent = prof.rol==='contabilidad'
+      ? 'Tu acceso es el panel de Contabilidad, no este. Regresa al inicio y elige "Contabilidad".'
+      : 'Tu acceso es la app de Mecánico, no este panel. Regresa al inicio y elige "Soy Mecánico".';
+    await sb.auth.signOut(); return;
+  }
+  profile={ id:prof.id, nombre:prof.nombre||user.email, rol:prof.rol, plaza_id:prof.plaza_id, plaza:prof.tm_plazas?prof.tm_plazas.nombre:'' };
+  document.getElementById('who-name').textContent=profile.nombre;
+  document.getElementById('who-rol').textContent=profile.rol.toUpperCase()+(profile.plaza?(' · '+profile.plaza):'');
+  document.getElementById('login').classList.add('hide');
+  document.getElementById('sb-side').classList.remove('hide');
+  document.getElementById('sb-main').classList.remove('hide');
+  const fe=document.getElementById('f-est');
+  PIPELINE.concat(ESPECIALES).forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; fe.appendChild(o); });
+  await cargarConfig(); await cargarPlazas(); await cargarTodo(); suscribir();
+}
+async function cargarPlazas(){
+  const sel=document.getElementById('f-plaza');
+  if(esAdmin()||profile.rol==='contabilidad'){
+    const { data }=await sb.from('tm_plazas').select('nombre').order('nombre');
+    (data||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; sel.appendChild(o); });
+    document.getElementById('hdr-plaza').textContent='Todas las plazas';
+    const { data:pl }=await sb.from('tm_plazas').select('nombre').order('nombre');
+    const pp=document.getElementById('p-plaza');
+    (pl||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; pp.appendChild(o); });
+  } else {
+    sel.innerHTML=`<option value="${profile.plaza}">📍 ${profile.plaza}</option>`; sel.disabled=true;
+    document.getElementById('hdr-plaza').textContent='Plaza: '+profile.plaza;
+    const pp=document.getElementById('p-plaza');
+    pp.innerHTML=`<option value="${profile.plaza}">📍 ${profile.plaza}</option>`; pp.disabled=true;
+  }
+}
+
+function vista(v){
+  const esOrd = v==='ordenes';
+  document.getElementById('v-ordenes').classList.toggle('hide',!esOrd);
+  document.getElementById('v-prov').classList.toggle('hide',esOrd);
+  document.getElementById('nav-ordenes').classList.toggle('on',esOrd);
+  document.getElementById('nav-prov').classList.toggle('on',!esOrd);
+  document.querySelector('header h1').textContent = esOrd?'Dashboard General':'Catálogo de Proveedores';
+  if(!esOrd) renderProv();
+}
+
+function renderProv(){
+  const fp=document.getElementById('p-plaza').value;
+  const ft=document.getElementById('p-tipo').value;
+  const fb=(document.getElementById('p-buscar').value||'').trim().toLowerCase();
+  const rows=proveedores.filter(p=>{
+    const mP=fp==='Todos'||norm(p.plaza)===norm(fp);
+    const mT=ft==='Todos'||p.tipo===ft;
+    const blob=[p.nombre,p.direccion,p.tipo,p.sede].join(' ').toLowerCase();
+    return mP&&mT&&(!fb||blob.includes(fb));
+  });
+  document.getElementById('p-count').textContent=rows.length+' proveedores';
+  const cont=document.getElementById('prov-body');
+  if(!rows.length){ cont.innerHTML='<div style="text-align:center;color:#8b93b8;padding:50px;"><div style="font-size:40px;margin-bottom:10px;">🏪</div>Sin proveedores con estos filtros.</div>'; return; }
+  // Agrupar por plaza + sede
+  const grupos={};
+  rows.forEach(p=>{ const k=p.plaza+' — '+(p.sede||''); (grupos[k]=grupos[k]||[]).push(p); });
+  let html='';
+  Object.keys(grupos).sort().forEach(k=>{
+    html+=`<div class="sede-h">📍 ${k}</div><div class="pgrid">`;
+    grupos[k].forEach(p=>{
+      const stars=p.rating?('★ '+Number(p.rating).toFixed(1)+(p.resenas?` <span style="color:#8b93b8;font-weight:500;">(${p.resenas})</span>`:'')):'';
+      html+=`<div class="pcard">
+        <span class="tipo ${p.tipo==='Llantera'?'llan':'refa'}">${p.tipo}</span>
+        <h4>${p.nombre}</h4>
+        ${stars?`<div class="stars">${stars}</div>`:''}
+        <div class="row">📍 <span>${p.direccion||'—'}</span></div>
+        ${p.telefono?`<div class="row">📞 <b>${p.telefono}</b></div>`:''}
+        <div class="acts">
+          ${p.maps_url?`<a class="btn-map" href="${p.maps_url}" target="_blank" rel="noopener">🗺️ Ver en Maps</a>`:''}
+          ${p.telefono?`<a class="btn-tel" href="tel:${p.telefono.replace(/\s/g,'')}">📞 Llamar</a>`:''}
+        </div></div>`;
+    });
+    html+='</div>';
+  });
+  cont.innerHTML=html;
+}
+async function fetchAll(build){
+  let out=[],from=0;const size=1000;
+  while(true){
+    const {data,error}=await build().range(from,from+size-1);
+    if(error||!data||!data.length)break;
+    out=out.concat(data);
+    if(data.length<size)break;
+    from+=size;
+  }
+  return {data:out};
+}
+async function cargarTodo(){
+  const [s,r,e,h,d,pv]=await Promise.all([
+    fetchAll(()=>sb.from('tm_servicios').select('*').order('updated_at',{ascending:false})),
+    fetchAll(()=>sb.from('tm_refacciones').select('*')),
+    fetchAll(()=>sb.from('tm_evidencias').select('*')),
+    fetchAll(()=>sb.from('tm_historial').select('*').order('fecha',{ascending:true})),
+    sb.from('tm_diagnosticos').select('*'),
+    sb.from('tm_proveedores').select('*').eq('activo',true).order('plaza').order('sede').order('tipo').order('rating',{ascending:false})
+  ]);
+  servicios=s.data||[]; refs=r.data||[]; evis=e.data||[]; hist=h.data||[]; diags=d.data||[]; proveedores=pv.data||[];
+  render(); renderProv(); if(activeId) abrir(activeId);
+}
+function suscribir(){
+  sb.channel('tm-live')
+   .on('postgres_changes',{event:'*',schema:'public',table:'tm_servicios'},cargarTodo)
+   .on('postgres_changes',{event:'*',schema:'public',table:'tm_evidencias'},cargarTodo)
+   .on('postgres_changes',{event:'*',schema:'public',table:'tm_refacciones'},cargarTodo)
+   .on('postgres_changes',{event:'*',schema:'public',table:'tm_historial'},cargarTodo)
+   .on('postgres_changes',{event:'*',schema:'public',table:'tm_proveedores'},cargarTodo).subscribe();
+}
+const refsDe=id=>refs.filter(r=>r.servicio_id===id);
+// El archivo puede ser foto, PDF, XML o el formato de cotización (HTML)
+const extDe=u=>{ const m=(u||'').split('?')[0].match(/\.([a-z0-9]{2,4})$/i); return m?m[1].toLowerCase():''; };
+const esFoto=u=>['jpg','jpeg','png','webp','gif','heic'].includes(extDe(u));
+const ICONO={html:'📄',pdf:'📕',xml:'🧾',xlsx:'📊',doc:'📄',docx:'📄'};
+const iconoDe=u=>ICONO[extDe(u)]||'📎';
+// Días que lleva la orden en su paso actual
+function diasEnPaso(s){
+  const d=new Date(s.updated_at||s.created_at||Date.now());
+  return Math.floor((Date.now()-d.getTime())/86400000);
+}
+// Alerta: más de 15 días esperando autorización -> cobrar el diagnóstico
+const LIMITE_AUTORIZACION=15;
+function alertaAutorizacion(s){
+  if(s.estatus!=='Pendiente de Autorización') return null;
+  const d=diasEnPaso(s);
+  if(d<LIMITE_AUTORIZACION) return null;
+  const mo=Number(s.mano_obra)||0;
+  return { dias:d, cobro: Math.round(mo*0.5*100)/100 };
+}
+const evisDe=id=>evis.filter(e=>e.servicio_id===id);
+let CFG={markup_piezas:1.20, iva:0.16, vigencia_dias:15};
+async function cargarConfig(){
+  const {data}=await sb.from('tm_config').select('clave,valor');
+  if(data) data.forEach(c=>{ CFG[c.clave]=Number(c.valor); });
+}
+function totales(s){
+  const lines=refsDe(s.id);
+  const costo = s.nuevo_flujo===false ? (Number(s.costo_total)||0)
+              : (lines.length ? lines.reduce((a,p)=>a+(p.cantidad||0)*(p.costo||0),0) : Number(s.costo_total)||0);
+  const mo = Number(s.mano_obra)||0;
+  const piezasCliente = s.nuevo_flujo===false ? (Number(s.venta_total)||0)-mo : Math.round(costo*CFG.markup_piezas*100)/100;
+  const subtotal = s.nuevo_flujo===false ? (Number(s.venta_total)||0) : piezasCliente+mo;
+  const iva = Math.round(subtotal*CFG.iva*100)/100;
+  const total = Math.round((subtotal+iva)*100)/100;
+  return { costo, mo, piezasCliente, subtotal, iva, total, utilidad: subtotal-costo };
+}
+
+function limpiarFiltros(){
+  grupoActivo=null;
+  document.getElementById('f-plaza').value='Todos';
+  document.getElementById('f-est').value='Todos';
+  document.getElementById('f-buscar').value='';
+  render();
+}
+
+// ===== GRUPOS DE ESTATUS (para los totales clickeables) =====
+const GRUPOS={
+  auth:{ nombre:'En Proceso', estatus:PIPELINE.slice(0,8) },                 // pasos 1 al 8
+  taller:{ nombre:'En Facturación', estatus:PIPELINE.slice(8,11) },          // pasos 9 al 11
+  porfact:{ nombre:'Factura Entregada', estatus:PIPELINE.slice(11,12) }      // paso 12
+};
+let grupoActivo=null;
+
+function verGrupo(g){
+  grupoActivo = (grupoActivo===g) ? null : g;   // volver a tocarlo lo desactiva
+  document.getElementById('f-est').value='Todos';
+  render();
+  document.getElementById('sel-resumen').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function render(){
+  const fp=document.getElementById('f-plaza').value, fe=document.getElementById('f-est').value;
+  const fb=(document.getElementById('f-buscar').value||'').trim().toLowerCase();
+  const plazaSet=servicios.filter(s=>fp==='Todos'||norm(s.plaza)===norm(fp));
+  const cnt=arr=>plazaSet.filter(s=>arr.includes(s.estatus)).length;
+  let tc=0,tmo=0,tv=0; plazaSet.forEach(s=>{ const t=totales(s); tc+=t.costo; tmo+=t.mo; tv+=t.total; });
+  const G_AUTH=GRUPOS.auth.estatus, G_TALLER=GRUPOS.taller.estatus, G_PORFACT=GRUPOS.porfact.estatus;
+  document.getElementById('k-total').textContent=plazaSet.length;
+  document.getElementById('k-auth').textContent=cnt(G_AUTH);
+  document.getElementById('k-taller').textContent=cnt(G_TALLER);
+  document.getElementById('k-porfact').textContent=cnt(G_PORFACT);
+  document.getElementById('k-costo').textContent=fmt(tc);
+  document.getElementById('k-mo').textContent=fmt(tmo);
+  document.getElementById('k-venta').textContent=fmt(tv);
+  document.getElementById('k-util').textContent=fmt(tv-tc);
+  // El supervisor no ve montos: solo lo que necesita para operar
+  document.querySelectorAll('.kpi.dinero').forEach(el=>{ el.style.display = veDinero()?'':'none'; });
+  // marcar visualmente el grupo seleccionado
+  ['auth','taller','porfact'].forEach(g=>{
+    const el=document.getElementById('kpi-'+g);
+    if(el) el.classList.toggle('activo', grupoActivo===g);
+  });
+
+  const rows=plazaSet.filter(s=>{
+    const mG=!grupoActivo||GRUPOS[grupoActivo].estatus.includes(s.estatus);
+    const mE=fe==='Todos'||s.estatus===fe;
+    const blob=[s.economico,s.ot,s.cot,s.serie,s.placas,s.vehiculo,s.conductor].join(' ').toLowerCase();
+    return mG&&mE&&(!fb||blob.includes(fb));
+  }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
+
+  const tb=document.getElementById('tbody'); tb.innerHTML='';
+
+  // Resumen de la selección (refleja plaza + estatus + búsqueda)
+  let sc=0,smo=0,sv=0; rows.forEach(s=>{ const t=totales(s); sc+=t.costo; smo+=t.mo; sv+=t.total; });
+  const hayFiltro = fe!=='Todos' || !!fb || fp!=='Todos' || !!grupoActivo;
+  const bar=document.getElementById('sel-resumen');
+  bar.className = 'selbar' + (hayFiltro?' filtrado':'');
+  const etiquetas=[];
+  if(fp!=='Todos') etiquetas.push(`📍 ${fp}`);
+  if(grupoActivo) etiquetas.push(`${GRUPOS[grupoActivo].nombre}`);
+  if(fe!=='Todos') etiquetas.push(fe);
+  if(fb) etiquetas.push(`🔎 "${fb}"`);
+  bar.innerHTML =
+    (etiquetas.length?`<span class="tag">${etiquetas.join(' · ')}</span>`:'<span class="sl">Todo</span>') +
+    `<span><span class="sl">Servicios</span><span class="sv">${rows.length}</span></span>` +
+    (veDinero()
+      ? `<span><span class="sl">Costo piezas</span><span class="sv">${fmt(sc)}</span></span>` +
+        `<span><span class="sl">Mano de obra</span><span class="sv">${fmt(smo)}</span></span>` +
+        `<span><span class="sl">Total (c/IVA)</span><span class="sv" style="color:var(--cyan);">${fmt(sv)}</span></span>` +
+        `<span><span class="sl">Utilidad</span><span class="sv" style="color:#22d39a;">${fmt(sv-sc)}</span></span>`
+      : '') +
+    (hayFiltro?`<button class="limpiar" onclick="limpiarFiltros()">Limpiar filtros</button>`:'');
+
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:#8b93b8;padding:30px;">Sin órdenes con estos filtros.</td></tr>'; return; }
+  rows.forEach(s=>{
+    const t=totales(s);
+    const tr=document.createElement('tr'); tr.onclick=()=>abrir(s.id);
+    const acc = esAdmin()
+      ? `<button title="Eliminar" onclick="event.stopPropagation(); eliminarServicio('${s.id}','${(s.economico||'').replace(/'/g,'')}')" style="background:rgba(255,90,106,.12);color:#ff8f9a;border:1px solid rgba(255,90,106,.35);border-radius:8px;cursor:pointer;padding:5px 8px;">🗑️</button>` : '<span class="sub">—</span>';
+    tr.innerHTML=`<td><b style="color:var(--cyan);">${s.economico||s.folio||'—'}</b><div class="sub">OT: ${s.ot||'—'} · COT: ${s.cot||'—'}</div></td>
+      <td>📍 ${s.plaza||'—'}</td>
+      <td><b>${s.vehiculo||'—'}</b><div class="sub">${s.placas||'—'} · ${s.serie?s.serie.slice(-6):'—'}</div></td>
+      <td style="max-width:190px; color:var(--muted); font-size:11.5px;">${(s.diagnosticos||s.falla||'—').slice(0,70)}${(()=>{const a=alertaAutorizacion(s);return a?`<div style="margin-top:4px;color:#ff5a6a;font-weight:800;font-size:10px;">⏰ ${a.dias} días sin autorizar</div>`:'';})()}</td>
+      <td style="font-weight:700; font-variant-numeric:tabular-nums;">${t.total?fmt(t.total):'—'}</td>
+      <td><span class="badge" style="background:${COLOR[s.estatus]||'#666'};${s.estatus==='Diagnóstico'?'color:#3a2e00;':''}">${s.estatus}</span></td>
+      <td>${acc}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function abrir(id){
+  activeId=id; const s=servicios.find(x=>x.id===id); if(!s) return;
+  const idx=PIPELINE.indexOf(s.estatus);
+  const especial=ESPECIALES.includes(s.estatus);
+  const ev=evisDe(id); const evT={}; ev.forEach(e=>evT[e.tipo]=e.url);
+  const t=totales(s); const p=document.getElementById('panel');
+  const next=(!especial&&idx>=0&&idx<PIPELINE.length-1)?PIPELINE[idx+1]:null;
+  const gate=(next && !s.es_garantia)?(GATES[next]||[]):[];   // garantía: mismo flujo, sin candados
+  const faltanEv=gate.filter(g=>!evT[g]);
+  // Requisitos que no son archivos
+  const pendientes=[];
+  if(!s.es_garantia){
+    // Para cerrar la compra (paso 5) cada pieza debe traer su proveedor
+    if(next==='Reparado'){
+      const sinProv=refsDe(id).filter(r=>!r.proveedor||!r.proveedor.trim()).length;
+      if(sinProv) pendientes.push(`capturar el proveedor de ${sinProv} pieza${sinProv>1?'s':''}`);
+    }
+
+  }
+  const campos=next?(CAMPOS[next]||[]):[];
+  const faltanCampos=s.es_garantia?[]:campos.filter(c=>!s[c]);
+  const editable=puedeEditar();
+
+  const pipe=PIPELINE.map((st,i)=>`<div class="st ${i<idx?'done':(i===idx?'cur':'')}" title="${st}">${i+1}. ${CORTO[i]}</div>`).join('');
+
+  // Galería agrupada
+  const ini=['frontal','lateralDer','lateralIzq','trasera','tablero','motor','odometro'];
+  const proc=['cotizacion','envio_cotizacion','autorizacion','ticket_compra','refacciones_compradas','correo_ot_cliente','formato_entrega_firmado','identificacion_receptor'];
+  const fact=['correo_recepcion_ot','factura_pdf','factura_xml','factura','acuse_recepcion_telmex','acuse_envio_factura','comprobante_pago'];
+  const ent=ENTREGA.map(k=>'entrega_'+k);
+  const extras=Object.keys(evT).filter(k=>k.startsWith('extra_'));
+  const piezas=Object.keys(evT).filter(k=>k.startsWith('pieza_'));
+  const gitem=(k,cls)=>{
+    const u=evT[k]; if(!u) return '';
+    const nom=(GNOM[k]||k).replace('entrega: ','').replace('unidad lista: ','');
+    const ext=extDe(u)||'jpg';
+    const vista = esFoto(u)
+      ? `<img src="${u}" onclick="lb('${u}')">`
+      : `<a class="doc" href="${u}" target="_blank" title="Abrir ${nom}"><span class="i">${iconoDe(u)}</span><span class="e">${ext.toUpperCase()}</span></a>`;
+    return `<div class="gitem ${cls||''}">${vista}<a class="dl" href="${u}" download="${k}.${ext}" target="_blank" onclick="event.stopPropagation()" title="Descargar">⬇</a><span class="tg">${nom}</span></div>`;
+  };
+  const grupo=(titulo,arr,cls)=>{ const g=arr.map(k=>gitem(k,cls)).filter(Boolean).join(''); return g?`<div class="sect-h">${titulo}</div><div class="gal">${g}</div>`:''; };
+
+  // Refacciones editables
+  const lines=refsDe(id);
+  const provOpts = proveedores.filter(p=>norm(p.plaza)===norm(s.plaza)).map(p=>p.nombre);
+  let partsRows=lines.map(r=>`<tr>
+    <td>${r.descripcion||''}</td>
+    <td style="text-align:center;">${r.cantidad}</td>
+    <td>${editable?`<input list="prov-list" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:150px;font-size:11.5px;" onchange="setProveedorRef('${r.id}',this.value,this)">`:(r.proveedor||'—')}</td>
+    <td style="text-align:right;">${editable?`<input type="number" step="0.01" value="${r.costo||0}" style="width:92px;text-align:right;" onchange="setCosto('${r.id}',this.value,this)">`:fmt(r.costo)}</td>
+    <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${fmt((r.cantidad||0)*(r.precio||0))}</td>
+    ${editable?`<td style="text-align:center;"><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:''}</tr>`).join('')
+    ||`<tr><td colspan="6" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
+  const datalistProv = `<datalist id="prov-list">${provOpts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
+
+  // Mano de obra sugerida
+  let sugHtml='';
+  if(editable && s.nuevo_flujo!==false){
+    const dnames=(s.diagnosticos||'').split(' / ').map(x=>x.trim()).filter(Boolean);
+    const match=diags.filter(d=>dnames.includes(d.nombre)&&d.mo_tipico);
+    if(match.length){
+      const tip=match.reduce((a,d)=>a+Number(d.mo_tipico),0), mn=match.reduce((a,d)=>a+Number(d.mo_min||0),0), mx=match.reduce((a,d)=>a+Number(d.mo_max||0),0);
+      sugHtml=`<div class="sug">💡 <b>Mano de obra sugerida:</b> ${fmt(tip)} &nbsp;·&nbsp; rango histórico ${fmt(mn)} – ${fmt(mx)}
+        <button class="btn-sm" style="margin-left:8px;" onclick="setMO('${id}',${tip})">Usar sugerido</button>
+        <div style="font-size:10.5px;color:var(--muted);margin-top:5px;">Basado en ${match.map(d=>d.nombre+(d.muestra?` (${d.muestra} servicios)`:'')).join(', ')}</div></div>`;
+    } else if(t.costo>0){
+      const est=Math.round(t.costo*0.33);
+      sugHtml=`<div class="sug">💡 <b>Mano de obra sugerida:</b> ${fmt(est)} <span style="color:var(--muted);">(≈33% del costo de piezas, mediana histórica)</span>
+        <button class="btn-sm" style="margin-left:8px;" onclick="setMO('${id}',${est})">Usar sugerido</button></div>`;
+    }
+  }
+
+  const garBox = s.es_garantia ? `<div style="background:rgba(169,123,255,.12);border:1px solid rgba(169,123,255,.4);border-left:4px solid #a97bff;border-radius:10px;padding:11px 15px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div><span style="font-size:12px;font-weight:900;color:#c9adff;">🛡️ GARANTÍA</span>
+      <span style="font-size:12px;color:#cdd3ee;margin-left:8px;">Sigue el flujo normal, sin evidencias obligatorias.</span></div>
+      ${editable?`<button class="btn-sm" onclick="quitarGarantia('${id}')">Quitar garantía</button>`:''}</div>` : '';
+
+  const repBox = (s.estatus==='Compra de Refacciones y Reparación' && editable) ? `
+    <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:11px 15px;margin-bottom:12px;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:800;margin-bottom:7px;">Tipo de reparación</div>
+      <div style="display:flex;gap:8px;">${TIPO_REPARACION.map(t=>`<button class="btn-sm" style="${s.tipo_reparacion===t?'background:var(--cyan);color:#04202a;border-color:var(--cyan);':''}" onclick="setTipoReparacion('${id}','${t}')">${t}</button>`).join('')}</div>
+    </div>` : (s.tipo_reparacion?`<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">🔧 Reparación: <b style="color:var(--ink);">${s.tipo_reparacion}</b></div>`:'');
+
+  // El formato se genera cuando ya están capturadas las piezas: va después de los totales
+  const cotBox = (editable && s.estatus==='Cotización' && !evT['cotizacion']) ? (()=>{
+      const fc=faltaParaCotizar(s);
+      return `<div style="background:rgba(169,123,255,.07);border:1px solid rgba(169,123,255,.28);border-left:4px solid #a97bff;border-radius:10px;padding:13px 15px;margin:12px 0;">
+        <div style="font-size:12px;font-weight:900;color:#c9adff;margin-bottom:3px;">📄 FORMATO DE COTIZACIÓN</div>
+        <div id="cot-falta" style="font-size:11.5px;color:#ffc9d0;background:rgba(255,90,106,.08);border:1px solid rgba(255,90,106,.25);border-radius:8px;padding:8px 11px;margin:8px 0;${fc.length?'':'display:none;'}">${fc.length?`Antes de generar la cotización falta: <b>${fc.join(' · ')}</b>.`:''}</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:9px;">Se llena solo con la unidad, el diagnóstico, las piezas, la mano de obra y el IVA. Genera un <b>PDF</b>, lo guarda como evidencia y lo descarga.</div>
+        <button class="btn-adv" id="btn-gencot" ${fc.length?'disabled':''} style="margin:0;width:auto;padding:11px 22px;background:${fc.length?'rgba(255,255,255,.07)':'linear-gradient(135deg,#a97bff,#7c4dff)'};" onclick="generarCotizacion('${id}')">📄 Generar formato de cotización</button>
+      </div>`;
+    })() : '';
+
+  const gateBox = especial
+    ? `<div class="gate" style="background:rgba(255,90,106,.1);border-color:rgba(255,90,106,.3);color:#ff8f9a;">Orden en <b>${s.estatus}</b>.</div>`
+    : (!next ? `<div class="gate ok">✓ Proceso concluido.</div>`
+    : !puedeAvanzarA(next) ? `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;">Siguiente paso: <b>${next}</b> — lo realiza Contabilidad.</div>`
+    : ((faltanEv.length||faltanCampos.length||pendientes.length)
+        ? `<div class="gate">Estás en <b>${s.estatus}</b>. Para cerrar este paso y pasar a <b>${next}</b> falta: ${[...faltanCampos.map(c=>c.toUpperCase()),...faltanEv.map(g=>GNOM[g]||g),...pendientes].join(' · ')}.</div>`
+        + (editable?`<div class="upgrid">${faltanEv.map(g=>`<label class="up up-sm"><span>${MULTI.includes(g)?'📷+':'📷'} ${GNOM[g]||g}</span><input type="file" accept="image/*,application/pdf,.xml" ${MULTI.includes(g)?'multiple':''} onchange="subirGate('${id}','${g}',this)"></label>`).join('')}</div>`:'')
+        + (editable&&faltanCampos.length?`<div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;align-items:flex-end;">${faltanCampos.map(c=>
+            c.startsWith('fecha')
+              ? `<div><label style="display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">${ETIQ_C[c]||c}</label><input type="date" id="cmp-${c}" value="${new Date().toISOString().slice(0,10)}" style="margin-bottom:0;color-scheme:dark;"></div>`
+              : `<div><label style="display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">${ETIQ_C[c]||c}</label><input type="text" id="cmp-${c}" placeholder="${ETIQ_C[c]||c}" style="margin-bottom:0;"></div>`
+          ).join('')}<button class="btn-sm" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`:'')
+        : `<div class="gate ok">✓ Listo para avanzar a <b>${next}</b>.</div>`));
+
+  const puedeMover = next ? puedeAvanzarA(next) : false;
+  const botonesEspecial = (especial&&editable) ? `
+    <div style="margin:14px 0;display:flex;gap:8px;flex-wrap:wrap;">
+      ${s.estatus==='No Autorizado / Rechazado'?`<button class="btn-adv" style="margin:0;width:auto;padding:10px 20px;" onclick="regresarACotizacion('${id}')">↩ Regresar a Cotización</button>`:''}
+      ${s.estatus==='Garantía'?`<button class="btn-sm" onclick="regresarACotizacion('${id}')">↩ Regresar a Cotización</button>`:''}
+    </div>` : '';
+
+  const botones = (!especial&&editable) ? `
+    ${next?(puedeMover
+      ? `<button class="btn-adv" ${(faltanEv.length||faltanCampos.length||pendientes.length)?'disabled':''} onclick="avanzar('${id}')">${TXT_BTN[next]||('Avanzar a: '+next)} →</button>`
+      : `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;display:inline-block;margin:0;">🧾 El siguiente paso lo realiza <b>Contabilidad</b>.</div>`):''}
+    ${(idx>0 && puedeAvanzarA(PIPELINE[idx-1]) && (s.estatus!=='Factura Pagada'||esAdmin()))?`<button class="btn-back" onclick="retroceder('${id}')" title="Regresar al paso anterior">← Regresar a: ${CORTO[idx-1]}</button>`:''}
+    ${s.estatus==='Autorizado'?`<button class="btn-rej" onclick="marcar('${id}','No Autorizado / Rechazado')">✕ No autorizado / Rechazado</button>`:''}
+    ${s.estatus==='Cotización'?`<button class="btn-gar" onclick="marcarGarantia('${id}')">🛡️ Marcar como Garantía</button>`:''}` : '';
+
+  const extrasEditables = editable && !especial ? `
+    <div class="sect-h">Cargar evidencias adicionales</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <label class="up" style="margin:0;">🔧 Agregar foto de <b>pieza cambiada</b><input type="file" accept="image/*" onchange="subirPieza('${id}',this)"></label>
+      <label class="up" style="margin:0;">📷 Agregar foto extra<input type="file" accept="image/*" onchange="subirExtra('${id}',this)"></label>
+    </div>` : '';
+
+  const moBox = editable&&s.nuevo_flujo!==false
+    ? `<div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+        <label style="margin:0;white-space:nowrap;">Mano de obra:</label>
+        <input type="number" step="0.01" id="mo-input" value="${s.mano_obra||0}" style="margin:0;max-width:150px;">
+        <button class="btn-sm" onclick="setMO('${id}',document.getElementById('mo-input').value)">Guardar</button>
+      </div>` : '';
+
+  p.innerHTML=`<span class="pclose" onclick="cerrar()">✕ Cerrar</span>
+    <h2 style="clear:both;">🚗 ${s.economico||s.folio||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${s.vehiculo||''}</span></h2>
+    <div class="pipe">${pipe}</div>
+    ${garBox}${repBox}${paqueteBox(s,evT)}${gateBox}
+    ${(s.estatus==='Cotización'&&editable)?`
+      <div style="margin:8px 0;"><button class="btn-sm" onclick="editarDatos('${id}')">✏️ Corregir datos de la unidad</button></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:11px 15px;margin:8px 0;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:800;margin-bottom:6px;">Atención (a quién va dirigida la cotización)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" id="aten-${id}" value="${(s.atencion||'').replace(/"/g,'&quot;')}" placeholder="Ej. ING JUAN VERGARA — o déjalo vacío para llenar a mano" style="flex:1;min-width:230px;margin-bottom:0;">
+          <button class="btn-sm" onclick="setAtencion('${id}')">Guardar</button>
+          <button class="btn-sm" onclick="verFormatoCot('${id}')">👁️ Ver formato</button>
+        </div>
+      </div>`:''}
+    <div style="margin:14px 0;">${botones}</div>
+    <details class="det-orden" ${PIPELINE.indexOf(s.estatus)>=4?'':'open'}>
+    <summary>📋 Ver detalle de la orden</summary>
+    <div class="info">
+      <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
+      <div><div class="l">COT</div><div class="vv">${s.cot||'—'}</div></div>
+      <div><div class="l">Plaza</div><div class="vv">${s.plaza||'—'}</div></div>
+      <div><div class="l">Marca / Modelo</div><div class="vv">${s.marca||'—'} ${s.modelo||''}</div></div>
+      <div><div class="l">Año</div><div class="vv">${s.anio||'—'}</div></div>
+      <div><div class="l">Placas</div><div class="vv">${s.placas||'—'}</div></div>
+      <div><div class="l">Serie (VIN)</div><div class="vv" style="font-size:11.5px;">${s.serie||'—'}</div></div>
+      <div><div class="l">Kilometraje</div><div class="vv">${s.kilometraje||'—'}</div></div>
+      <div><div class="l">Mecánico</div><div class="vv">${s.mecanico||'—'}</div></div>
+      <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
+      <div><div class="l">Estatus</div><div class="vv" style="color:${COLOR[s.estatus]||'#fff'};">${s.estatus}</div></div>
+    </div>
+    ${(()=>{const a=alertaAutorizacion(s); if(!a) return '';
+      return `<div style="background:rgba(255,90,106,.1);border:1px solid rgba(255,90,106,.4);border-left:4px solid #ff5a6a;border-radius:10px;padding:13px 16px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:900;color:#ff5a6a;margin-bottom:5px;">⏰ NO AUTORIZADO — ${a.dias} DÍAS SIN RESPUESTA</div>
+        <div style="font-size:12.5px;color:#ffc9d0;line-height:1.5;">Pasaron más de ${LIMITE_AUTORIZACION} días desde que se envió la cotización. Procede marcarla como <b>No Autorizado / Rechazado</b> y cobrar el diagnóstico: <b style="color:#fff;">${veDinero()?fmt(a.cobro):'50% de la mano de obra'}</b>${veDinero()?' (50% de la mano de obra)':''}.</div>
+      </div>`;})()}
+    <div class="sect-h">Diagnóstico</div>
+    <div style="font-size:13px;color:#cdd3ee;line-height:1.5;">${(()=>{
+      const d=(s.diagnosticos||'').trim(), f=(s.falla||'').trim();
+      const verF = f && f!==d;
+      if(!d && !verF) return '—';
+      return (d?`<b style="color:var(--cyan);">${d}</b>`:'') + (verF?(d?'<br>':'')+f:'');
+    })()}</div>
+    </details>
+    ${s.observaciones?`<div style="margin-top:10px; background:rgba(245,184,0,.08); border:1px solid rgba(245,184,0,.28); border-left:3px solid #f5b800; border-radius:8px; padding:10px 13px;">
+      <div style="font-size:9.5px; text-transform:uppercase; letter-spacing:.7px; color:#f5b800; font-weight:800; margin-bottom:4px;">📌 Observaciones</div>
+      <div style="font-size:12.5px; color:#e8d9a8; line-height:1.5;">${s.observaciones}</div>
+    </div>`:''}
+
+    <div class="sect-h">Refacciones y costos</div>
+    ${datalistProv}<table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th>Proveedor</th><th style="text-align:right;">Costo nuestro</th><th style="text-align:right;">Precio cliente${s.nuevo_flujo===false?'':' (+'+Math.round((CFG.markup_piezas-1)*100)+'%)'}</th>${editable?'<th></th>':''}</tr></thead><tbody>${partsRows}</tbody></table>
+    ${editable?`<div style="display:grid;grid-template-columns:2fr 70px 100px 80px;gap:8px;margin-top:10px;">
+      <input type="text" id="nr-desc" placeholder="Nueva refacción" style="margin:0;">
+      <input type="number" id="nr-cant" value="1" min="1" style="margin:0;">
+      <input type="number" id="nr-costo" placeholder="Costo" step="0.01" style="margin:0;">
+      <button class="btn-sm" onclick="addRef('${id}')">＋ Agregar</button></div>`:''}
+    ${sugHtml}${moBox}
+    ${cotBox}
+    <div class="money">
+      <div class="mbox m-costo"><div class="ml">Costo piezas</div><div class="mv">${fmt(t.costo)}</div></div>
+      <div class="mbox m-piezas"><div class="ml">Piezas +${Math.round((CFG.markup_piezas-1)*100)}%</div><div class="mv">${fmt(t.piezasCliente)}</div></div>
+      <div class="mbox m-mo"><div class="ml">Mano de obra</div><div class="mv">${fmt(t.mo)}</div></div>
+      <div class="mbox m-sub"><div class="ml">Subtotal</div><div class="mv">${fmt(t.subtotal)}</div></div>
+      <div class="mbox m-iva"><div class="ml">IVA ${Math.round(CFG.iva*100)}%</div><div class="mv">${fmt(t.iva)}</div></div>
+      <div class="mbox tot m-tot"><div class="ml">Total con IVA</div><div class="mv">${fmt(t.total)}</div></div>
+    </div>
+    ${grupo('Evidencia de recepción',ini)}
+    ${grupo('Evidencia del proceso',proc)}
+    ${grupo('Evidencia de facturación',fact)}
+    ${grupo('Evidencia de entrega',ent,'entrega')}
+    ${grupo('Piezas cambiadas',piezas,'pieza')}
+    ${grupo('Fotos extra',extras)}
+    ${extrasEditables}
+    <div class="sect-h">Historial</div>
+    ${hist.filter(h=>h.servicio_id===id).map(h=>`<div class="sub" style="padding:4px 0;">• ${h.estatus} <span style="opacity:.6;">— ${new Date(h.fecha).toLocaleString('es-MX')} ${h.usuario?('· '+h.usuario):''}</span></div>`).join('')||'<div class="sub">Sin historial.</div>'}`;
+  p.classList.add('open');
+}
+function cerrar(){ activeId=null; document.getElementById('panel').classList.remove('open'); }
+function lb(src){ document.getElementById('lb-img').src=src; document.getElementById('lb').style.display='flex'; }
+
+function comprimir(file){ return new Promise(res=>{ const img=new Image(),u=URL.createObjectURL(file);
+  img.onload=()=>{ const max=1280; let{width:w,height:h}=img; if(w>h&&w>max){h=h*max/w;w=max;}else if(h>max){w=w*max/h;h=max;}
+    const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(u);c.toBlob(b=>res(b),'image/jpeg',0.7); };
+  img.onerror=()=>res(file); img.src=u; }); }
+
+async function subirFoto(id,tipo,file){
+  const blob=await comprimir(file);
+  const path=`${id}/${tipo}.jpg`;
+  const { error:eu }=await sb.storage.from('tm-evidencias').upload(path,blob,{upsert:true,contentType:'image/jpeg'});
+  if(eu) throw eu;
+  const { data:{ publicUrl } }=sb.storage.from('tm-evidencias').getPublicUrl(path);
+  const ya=evis.find(e=>e.servicio_id===id&&e.tipo===tipo);
+  if(ya) await sb.from('tm_evidencias').update({url:publicUrl}).eq('id',ya.id);
+  else await sb.from('tm_evidencias').insert({servicio_id:id,tipo,url:publicUrl});
+}
+async function subirGate(id,tipo,input){
+  const files=[...input.files]; if(!files.length) return;
+  input.parentElement.innerHTML='<span class="spin"></span> Subiendo...';
+  try{
+    if(MULTI.includes(tipo)){
+      // Varios archivos: el primero cumple el candado, los demás quedan numerados
+      const ya=evisDe(id).filter(e=>e.tipo===tipo||e.tipo.startsWith(tipo+'_')).length;
+      for(let i=0;i<files.length;i++){
+        const t = (ya===0 && i===0) ? tipo : tipo+'_'+(ya+i+1);
+        await subirFoto(id,t,files[i]);
+      }
+    } else {
+      await subirFoto(id,tipo,files[0]);
+    }
+    await cargarTodo();
+  }catch(e){ alert('Error: '+(e.message||e)); await cargarTodo(); }
+}
+async function subirPieza(id,input){
+  const f=input.files[0]; if(!f) return;
+  const n=evisDe(id).filter(e=>e.tipo.startsWith('pieza_')).length+1;
+  input.parentElement.innerHTML='<span class="spin"></span> Subiendo...';
+  try{ await subirFoto(id,'pieza_'+n,f); await cargarTodo(); }catch(e){ alert('Error: '+(e.message||e)); await cargarTodo(); }
+}
+async function subirExtra(id,input){
+  const f=input.files[0]; if(!f) return;
+  const n=evisDe(id).filter(e=>e.tipo.startsWith('extra_')).length+1;
+  input.parentElement.innerHTML='<span class="spin"></span> Subiendo...';
+  try{ await subirFoto(id,'extra_'+n,f); await cargarTodo(); }catch(e){ alert('Error: '+(e.message||e)); await cargarTodo(); }
+}
+// ===== PAQUETE PARA ENTREGAR AL CLIENTE (paso 11) =====
+const PAQUETE=[
+  {k:'factura_pdf', n:'Factura (PDF)'},
+  {k:'factura_xml', n:'Factura (XML)'},
+  {k:'cotizacion', n:'Cotización'},
+  {k:'autorizacion', n:'Correo de autorización'},
+  {k:'correo_ot_cliente', n:'OT del cliente'},
+  {k:'formato_entrega_firmado', n:'Formato de entrega firmado'}
+];
+// Qué falta para que la cotización tenga sentido
+function faltaParaCotizar(s){
+  const f=[], lines=refsDe(s.id);
+  if(!lines.length) f.push('capturar al menos una refacción');
+  else {
+    const sinPrecio=lines.filter(r=>!Number(r.costo)).length;
+    if(sinPrecio) f.push(`el costo de ${sinPrecio} pieza${sinPrecio>1?'s':''}`);
+  }
+  if(!(s.atencion||'').trim()) f.push('a quién va dirigida (ATENCIÓN)');
+  if(!Number(s.mano_obra)) f.push('la mano de obra');
+  return f;
+}
+function paqueteBox(s,evT){
+  if(s.estatus!=='Contabilidad Emitió Factura') return '';
+  const items=PAQUETE.map(d=>{
+    const u=evT[d.k];
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;background:${u?'rgba(34,211,154,.07)':'rgba(255,90,106,.06)'};border:1px solid ${u?'rgba(34,211,154,.25)':'rgba(255,90,106,.2)'};">
+      <span style="font-size:11.5px;color:${u?'#cdd3ee':'#ff8f9a'};">${u?'✓':'✕'} ${d.n}</span>
+      ${u?`<span style="display:flex;gap:5px;"><a class="btn-sm" href="${u}" download="${d.k}.${extDe(u)||'jpg'}" target="_blank" style="text-decoration:none;" title="Descargar">⬇</a><a class="btn-sm" href="${u}" target="_blank" style="text-decoration:none;" title="Abrir e imprimir">🖨️</a></span>`:'<span style="font-size:10px;color:#8b93b8;">no disponible</span>'}
+    </div>`;
+  }).join('');
+  const listos=PAQUETE.filter(d=>evT[d.k]).length;
+  return `<div style="background:rgba(0,208,230,.06);border:1px solid rgba(0,208,230,.3);border-left:4px solid var(--cyan);border-radius:10px;padding:13px 15px;margin-bottom:12px;">
+    <div style="font-size:12px;font-weight:900;color:var(--cyan);margin-bottom:4px;">📦 PAQUETE PARA ENTREGAR AL CLIENTE — ${listos}/${PAQUETE.length}</div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:9px;">Descarga o imprime cada documento para entregarlo al cliente y enviarlo a Telmex.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px;">${items}</div>
+  </div>`;
+}
+async function descargarPaquete(id){
+  const ev=evisDe(id); const evT={}; ev.forEach(e=>evT[e.tipo]=e.url);
+  const docs=PAQUETE.filter(d=>evT[d.k]);
+  if(!docs.length){ alert('Todavía no hay documentos que descargar.'); return; }
+  const s=servicios.find(x=>x.id===id);
+  for(let i=0;i<docs.length;i++){
+    const d=docs[i], u=evT[d.k];
+    const a=document.createElement('a');
+    a.href=u; a.download=`${(s.cot||id.slice(0,6))}_${d.k}.${extDe(u)||'jpg'}`;
+    a.target='_blank'; document.body.appendChild(a); a.click(); a.remove();
+    await new Promise(r=>setTimeout(r,320));
+  }
+  await sb.from('tm_servicios').update({paquete_descargado:new Date().toISOString()}).eq('id',id);
+  await cargarTodo(); abrir(id);
+}
+function abrirTodo(id){
+  const ev=evisDe(id); const evT={}; ev.forEach(e=>evT[e.tipo]=e.url);
+  const urls=PAQUETE.filter(d=>evT[d.k]).map(d=>evT[d.k]);
+  if(!urls.length){ alert('Todavía no hay documentos que imprimir.'); return; }
+  urls.forEach((u,i)=>setTimeout(()=>window.open(u,'_blank'), i*350));
+}
+
+// ===== FORMATO DE COTIZACIÓN CON LLENADO AUTOMÁTICO (paso 2) =====
+const ESTADO={Monterrey:'Nuevo León',Cuautla:'Morelos','Torreón':'Coahuila',Veracruz:'Veracruz',
+  Morelia:'Michoacán',Iguala:'Guerrero',Saltillo:'Coahuila',Oaxaca:'Oaxaca',Puebla:'Puebla'};
+const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+// El logo se pasa a texto para que quede incrustado en el PDF y no dependa del sitio
+// Respaldo por si el proveedor principal de las librerías no responde
+function cargarScript(u){ return new Promise((ok,err)=>{ const t=document.createElement('script'); t.src=u; t.onload=ok; t.onerror=err; document.head.appendChild(t); }); }
+async function cargarLibsPDF(){
+  const alt=[['html2canvas','https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'],
+             ['jspdf','https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js']];
+  for(const [g,u] of alt){ if(!window[g]){ try{ await cargarScript(u); }catch(e){} } }
+}
+let LOGO_B64=null;
+async function logoB64(){
+  if(LOGO_B64!==null) return LOGO_B64;
+  try{
+    const r=await fetch('logo.png');
+    if(!r.ok) throw 0;
+    const b=await r.blob();
+    LOGO_B64=await new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(b); });
+  }catch(e){ LOGO_B64=''; }
+  return LOGO_B64;
+}
+function cotEstilos(){ return ` @page{size:letter;margin:12mm;} *{box-sizing:border-box;}
+ body{font-family:Calibri,Arial,sans-serif;color:#000;margin:0;font-size:11px;}
+ .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+ .logo{height:96px;width:auto;object-fit:contain;}
+ .logo-txt{font-size:27px;font-weight:900;color:#123a5e;letter-spacing:1px;line-height:1;}
+ .logo-txt span{display:block;font-size:7.5px;letter-spacing:2.5px;margin-top:3px;}
+ .meta{text-align:right;font-size:11px;line-height:1.85;}
+ .meta b{margin-right:5px;}
+ .aten{font-size:14px;font-weight:bold;margin:16px 0 10px;}
+ .ed{display:inline-block;min-width:290px;border-bottom:1px solid #000;padding:0 4px 1px;outline:none;}
+ .ed:empty::before{content:'';display:inline-block;}
+ .ed:focus{background:#fffbe6;}
+ @media print{ .ed{border-bottom:1px solid #000;background:none;} }
+ .pres{letter-spacing:2px;font-size:11px;margin-bottom:16px;}
+ .intro{font-size:11px;margin-bottom:16px;}
+ table{width:100%;border-collapse:collapse;}
+ .uni th,.pz th{background:#1f6091;color:#fff;font-size:10.5px;padding:4px 5px;border:1px solid #fff;text-align:center;font-weight:bold;}
+ .uni td{border:1px solid #bfbfbf;height:19px;padding:2px 5px;font-size:10.5px;text-align:center;}
+ .uni{margin-bottom:18px;}
+ .pz td{border:1px solid #bfbfbf;height:23px;padding:2px 6px;font-size:10.5px;}
+ .pz .c{text-align:center;} .pz .r{text-align:right;}
+ .tot{width:44%;margin:14px 0 0 auto;border-collapse:collapse;}
+ .tot td{border:1px solid #bfbfbf;padding:3px 7px;font-size:11px;}
+ .tot .l{text-align:right;font-weight:bold;background:#fff;}
+ .tot .v{text-align:right;width:47%;}
+ .tot .y td{background:#ffff00;font-weight:bold;}
+ .cierre{font-size:11px;margin-top:26px;text-align:center;}
+ .firma{text-align:center;font-weight:bold;margin-top:34px;font-size:11px;}
+ .gar{background:#f3e8ff;border:1px solid #a97bff;color:#5b21b6;padding:5px 10px;font-weight:bold;margin:10px 0;font-size:11px;text-align:center;}
+ @media print{.noprint{display:none;}}
+`; }
+
+function cotDatos(s){
+  const t=totales(s), lines=refsDe(s.id);
+  const f=n=>'$ '+(Number(n)||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const d=new Date();
+  const fechaTxt=`${s.plaza||''}, ${ESTADO[s.plaza]||''}, a ${String(d.getDate()).padStart(2,'0')} ${MESES[d.getMonth()]} del ${d.getFullYear()}`;
+  const mesTxt=MESES[d.getMonth()].toLowerCase()+' '+d.getFullYear();
+  const items=lines.map(r=>({desc:r.descripcion||'', precio:(r.cantidad||0)*(r.precio||0), cant:r.cantidad||0}));
+  if(t.mo>0) items.push({desc:'MANO DE OBRA', precio:t.mo, cant:1});
+  const FILAS=11, izq=items.slice(0,FILAS), der=items.slice(FILAS,FILAS*2);
+  let cuerpo='';
+  for(let i=0;i<FILAS;i++){
+    const a=izq[i], b=der[i];
+    cuerpo+=`<tr><td class="c">${a?(i+1):''}</td><td>${a?a.desc:''}</td><td class="r">${a?f(a.precio):''}</td>`
+      +`<td class="c">${a&&a.cant?a.cant:''}</td><td>${b?b.desc:''}</td><td class="r">${b?f(b.precio):''}</td></tr>`;
+  }
+  return {t,f,fechaTxt,mesTxt,cuerpo};
+}
+
+// El contenido del formato, sin <html> ni <head>: sirve para la ventana y para el PDF
+function cuerpoCotizacion(s, logoData){
+  const {t,f,fechaTxt,mesTxt,cuerpo}=cotDatos(s);
+  return `<style>${cotEstilos()}</style>
+<div class="top">
+  ${logoData?`<img class="logo" src="${logoData}" alt="SITEL">`:'<div class="logo-txt">SITEL<span>TALLER MECÁNICO</span></div>'}
+  <div class="meta">
+    <div>${fechaTxt}</div>
+    <div><b>Folio</b> ${s.cot||'—'}</div>
+    <div><b>Vigencia</b> ${CFG.vigencia_dias||15} dias</div>
+  </div>
+</div>
+<div class="aten">ATENCIÓN: <span class="ed" contenteditable="true" spellcheck="false">${(s.atencion||'').toUpperCase()}</span></div>
+<div class="pres">P r e s e n t e</div>
+<div class="intro">Por medio de la presente, le envio la cotizacion  para la reparación del vehiculo que a continuación se describe.</div>
+${s.es_garantia?'<div class="gar">SERVICIO EN GARANTÍA — SIN COSTO PARA EL CLIENTE</div>':''}
+<table class="uni">
+  <tr><th>MARCA</th><th>MODELO</th><th>AÑO</th><th>PLACAS</th><th>N° ECONOMICO</th><th>VIN</th></tr>
+  <tr><td>${s.marca||''}</td><td>${s.modelo||''}</td><td>${s.anio||''}</td><td>${s.placas||''}</td><td>${s.economico||''}</td><td>${s.serie||''}</td></tr>
+</table>
+<table class="pz">
+  <tr><th style="width:5%;">NO.</th><th style="width:24%;">DESCRIPCIÓN</th><th style="width:13%;">PRECIO</th><th style="width:8%;">CANT.</th><th style="width:24%;">DESCRIPCIÓN</th><th style="width:13%;">PRECIO</th></tr>
+  ${cuerpo}
+</table>
+<table class="tot">
+  <tr><td class="l">SUBTOTAL</td><td class="v">${f(t.subtotal)}</td></tr>
+  <tr><td class="l">I.V.A.</td><td class="v">${f(t.iva)}</td></tr>
+  <tr class="y"><td class="l">TOTAL</td><td class="v">${f(t.total)}</td></tr>
+</table>
+<div class="cierre">Sin mas por el momento quedo de usted para cualquier duda o aclaración. (precios validos ${mesTxt})</div>
+<div class="firma">SITEL</div>`;
+}
+
+function formatoCotizacion(s, logoData){
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cotización ${s.cot||''}</title></head>
+<body style="margin:0;padding:14px;background:#fff;">
+${cuerpoCotizacion(s, logoData)}
+<div class="noprint" style="margin-top:22px;text-align:center;">
+  ${!s.atencion?`<div style="font-size:11px;color:#a15c00;background:#fff6e0;border:1px solid #f0c96a;border-radius:6px;padding:8px 12px;margin-bottom:12px;display:inline-block;">
+    ✏️ El campo <b>ATENCIÓN</b> está vacío: escríbelo aquí arriba antes de imprimir, o déjalo en blanco para llenarlo a mano.</div><br>`:''}
+  <button onclick="window.print()" style="background:#1f6091;color:#fff;border:0;padding:11px 26px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:bold;">🖨️ Imprimir o guardar como PDF</button>
+</div></body></html>`;
+}
+
+async function generarCotizacion(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const fc=faltaParaCotizar(s);
+  if(fc.length){ alert('No se puede generar la cotización todavía.\n\nFalta:\n· '+fc.join('\n· ')); return; }
+  const btn=document.getElementById('btn-gencot');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Generando el PDF...'; }
+  try{
+    if(!window.html2canvas || !window.jspdf){
+      await cargarLibsPDF();   // segundo intento con otro proveedor
+      if(!window.html2canvas || !window.jspdf)
+        throw new Error('No se pudieron cargar las librerías para el PDF. Revisa la conexión a internet y vuelve a intentar.');
+    }
+    const logo=await logoB64();
+    // Se dibuja el formato fuera de pantalla para capturarlo tal cual
+    const cont=document.createElement('div');
+    cont.style.cssText='position:fixed;left:-99999px;top:0;width:816px;background:#fff;';
+    cont.innerHTML=cuerpoCotizacion(s, logo);
+    document.body.appendChild(cont);
+    await new Promise(r=>setTimeout(r,260));   // dar tiempo a que pinte el logo
+    const canvas=await html2canvas(cont,{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:true});
+    document.body.removeChild(cont);
+
+    const { jsPDF } = window.jspdf;
+    const pdf=new jsPDF({unit:'pt',format:'letter'});
+    const W=pdf.internal.pageSize.getWidth(), H=pdf.internal.pageSize.getHeight();
+    const m=28, w=W-m*2, h=canvas.height*(w/canvas.width);
+    const img=canvas.toDataURL('image/jpeg',0.94);
+    if(h<=H-m*2){ pdf.addImage(img,'JPEG',m,m,w,h); }
+    else {
+      let resto=h, y=m;
+      while(resto>0){
+        pdf.addImage(img,'JPEG',m,y,w,h);
+        resto-=(H-m*2);
+        if(resto>0){ pdf.addPage(); y-=(H-m*2); }
+      }
+    }
+    const blob=pdf.output('blob');
+    const path=`${id}/cotizacion.pdf`;
+    const {error}=await sb.storage.from('tm-evidencias').upload(path,blob,{contentType:'application/pdf',upsert:true});
+    if(error) throw error;
+    const {data}=sb.storage.from('tm-evidencias').getPublicUrl(path);
+    const url=data.publicUrl+'?v='+Date.now();
+    const {error:e2}=await sb.from('tm_evidencias').upsert({servicio_id:id,tipo:'cotizacion',url},{onConflict:'servicio_id,tipo'});
+    if(e2) throw e2;
+    pdf.save(`Cotizacion_${s.cot||id.slice(0,6)}.pdf`);   // se descarga al momento
+    await cargarTodo(); abrir(id);
+  }catch(e){
+    alert('No se pudo generar el PDF: '+(e.message||e));
+    if(btn){ btn.disabled=false; btn.textContent='📄 Generar formato de cotización'; }
+  }
+}
+async function verFormatoCot(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const logo=await logoB64();
+  const w=window.open('','_blank');
+  w.document.write(formatoCotizacion(s, logo)); w.document.close();
+}
+async function editarDatos(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const campos=[['economico','Económico'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],
+                ['placas','Placas'],['serie','Serie (VIN)'],['kilometraje','Kilometraje'],['diagnosticos','Diagnóstico']];
+  const html=campos.map(([k,l])=>`<div style="margin-bottom:9px;"><label style="display:block;font-size:10px;color:#8b93b8;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px;">${l}</label>${
+    k==='diagnosticos'
+      ? `<textarea id="ed-${k}" rows="3" style="width:100%;">${(s[k]||'').replace(/</g,'&lt;')}</textarea>`
+      : `<input type="${k==='anio'||k==='kilometraje'?'number':'text'}" id="ed-${k}" value="${(s[k]??'').toString().replace(/"/g,'&quot;')}" style="width:100%;">`}</div>`).join('');
+  const bg=document.createElement('div');
+  bg.style.cssText='position:fixed;inset:0;background:rgba(4,6,18,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;';
+  bg.innerHTML=`<div style="background:#141834;border:1px solid #2a3157;border-radius:14px;padding:20px;max-width:520px;width:100%;max-height:88vh;overflow:auto;">
+    <div style="font-size:15px;font-weight:800;color:#e8ecff;margin-bottom:4px;">Corregir datos de la unidad</div>
+    <div style="font-size:11.5px;color:#8b93b8;margin-bottom:14px;">Ajusta lo que el mecánico haya capturado mal.</div>
+    ${html}
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn-adv" style="margin:0;flex:1;" id="ed-ok">Guardar cambios</button>
+      <button class="btn-sm" id="ed-no">Cancelar</button>
+    </div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#ed-no').onclick=()=>bg.remove();
+  bg.querySelector('#ed-ok').onclick=async()=>{
+    const upd={};
+    campos.forEach(([k])=>{
+      let v=document.getElementById('ed-'+k).value;
+      if(k==='anio'||k==='kilometraje') v=v===''?null:(parseInt(v)||null);
+      else v=v.trim()||null;
+      upd[k]=v;
+    });
+    const {error}=await sb.from('tm_servicios').update(upd).eq('id',id);
+    if(error){ alert('No se pudo: '+error.message); return; }
+    bg.remove(); await cargarTodo(); abrir(id);
+  };
+}
+async function setAtencion(id){
+  const v=document.getElementById('aten-'+id).value.trim();
+  await sb.from('tm_servicios').update({atencion:v||null}).eq('id',id);
+  await cargarTodo(); abrir(id);
+}
+async function regresarACotizacion(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  if(!confirm('¿Retomar esta orden y regresarla a Cotización?\n\nQuedará registrado en el historial.')) return;
+  const {error}=await sb.from('tm_servicios').update({estatus:'Cotización'}).eq('id',id);
+  if(error){ alert('No se pudo: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Cotización (retomada desde '+s.estatus+')',usuario:profile.nombre});
+  await cargarTodo(); abrir(id);
+}
+async function retroceder(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const i=PIPELINE.indexOf(s.estatus);
+  if(i<=0){ alert('Esta orden ya está en el primer paso.'); return; }
+  const anterior=PIPELINE[i-1];
+  if(!puedeAvanzarA(anterior)){ alert('El paso "'+anterior+'" no te corresponde.'); return; }
+  if(s.estatus==='Factura Pagada' && !esAdmin()){ alert('Esta orden ya está pagada y cerrada.\n\nSolo Contabilidad o Gerencia pueden reabrirla.'); return; }
+  if(!confirm(`¿Regresar esta orden de "${s.estatus}" a "${anterior}"?\n\nQuedará registrado en el historial. Las evidencias ya subidas se conservan; puedes reemplazarlas.`)) return;
+  const {error}=await sb.from('tm_servicios').update({estatus:anterior}).eq('id',id);
+  if(error){ alert('No se pudo: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:anterior+' (regresado desde '+s.estatus+')',usuario:profile.nombre});
+  await cargarTodo(); abrir(id);
+}
+async function marcarGarantia(id){
+  if(!confirm('¿Marcar esta orden como GARANTÍA?\n\nSigue el mismo flujo, pero sin evidencias obligatorias.')) return;
+  const {error}=await sb.from('tm_servicios').update({es_garantia:true}).eq('id',id);
+  if(error){ alert('No se pudo: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía',usuario:profile.nombre});
+  await cargarTodo(); abrir(id);
+}
+async function quitarGarantia(id){
+  const {error}=await sb.from('tm_servicios').update({es_garantia:false}).eq('id',id);
+  if(error){ alert('No se pudo: '+error.message); return; }
+  await cargarTodo(); abrir(id);
+}
+async function setTipoReparacion(id,v){
+  await sb.from('tm_servicios').update({tipo_reparacion:v}).eq('id',id);
+  await cargarTodo(); abrir(id);
+}
+async function avanzar(id){
+  const s=servicios.find(x=>x.id===id); const idx=PIPELINE.indexOf(s.estatus);
+  if(idx<0||idx>=PIPELINE.length-1) return;
+  const next=PIPELINE[idx+1];
+  const { error }=await sb.from('tm_servicios').update({estatus:next}).eq('id',id);
+  if(error){ alert('No se pudo avanzar: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:next,usuario:profile.nombre});
+  await cargarTodo();
+}
+async function marcar(id,estatus){
+  if(!confirm('¿Marcar esta orden como "'+estatus+'"?')) return;
+  await sb.from('tm_servicios').update({estatus}).eq('id',id);
+  await sb.from('tm_historial').insert({servicio_id:id,estatus,usuario:profile.nombre});
+  await cargarTodo();
+}
+async function guardarCampos(id,campos){
+  const upd={}; let falta=false;
+  campos.forEach(c=>{ const v=document.getElementById('cmp-'+c).value.trim(); if(!v) falta=true; upd[c]=v; });
+  if(falta){ alert('Llena todos los campos.'); return; }
+  await sb.from('tm_servicios').update(upd).eq('id',id); await cargarTodo();
+}
+async function setCosto(refId,val,el){
+  const v=parseFloat(val)||0;
+  const {error}=await sb.from('tm_refacciones').update({costo:v}).eq('id',refId);
+  if(error){ alert('No se guardó: '+error.message); return; }
+  const r=refs.find(x=>x.id===refId);
+  if(r){ r.costo=v; r.precio=Math.round(v*CFG.markup_piezas*100)/100; }
+  if(el){ el.classList.add('ok-flash'); setTimeout(()=>el.classList.remove('ok-flash'),900); }
+  refrescarTotales(activeId);
+}
+async function setProveedorRef(refId,val,el){
+  const {error}=await sb.from('tm_refacciones').update({proveedor:val||null}).eq('id',refId);
+  if(error){ alert('No se guardó: '+error.message); return; }
+  const r=refs.find(x=>x.id===refId); if(r) r.proveedor=val;
+  if(el){ el.classList.add('ok-flash'); setTimeout(()=>el.classList.remove('ok-flash'),900); }
+}
+// Actualiza los importes en pantalla sin volver a dibujar el panel (no se pierde el lugar)
+function refrescarTotales(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const t=totales(s);
+  const put=(cls,v)=>{ const e=document.querySelector('#panel .money .mbox.'+cls+' .mv'); if(e) e.textContent=fmt(v); };
+  put('m-costo',t.costo); put('m-piezas',t.piezasCliente); put('m-mo',t.mo);
+  put('m-sub',t.subtotal); put('m-iva',t.iva); put('m-tot',t.total);
+  refsDe(id).forEach(r=>{
+    const e=document.querySelector('#panel [data-imp="'+r.id+'"]');
+    if(e) e.textContent=fmt((r.cantidad||0)*(r.precio||0));
+  });
+  const g=document.getElementById('btn-gencot');
+  if(g){ const fc=faltaParaCotizar(s); g.disabled=fc.length>0;
+    g.style.background = fc.length? 'rgba(255,255,255,.07)' : 'linear-gradient(135deg,#a97bff,#7c4dff)';
+    const av=document.getElementById('cot-falta');
+    if(av) av.innerHTML = fc.length? `Antes de generar la cotización falta: <b>${fc.join(' · ')}</b>.` : '';
+    if(av) av.style.display = fc.length? '' : 'none';
+  }
+}
+async function setMO(id,val){
+  await sb.from('tm_servicios').update({mano_obra:parseFloat(val)||0}).eq('id',id); await cargarTodo();
+}
+async function addRef(id){
+  const d=document.getElementById('nr-desc').value.trim();
+  if(!d){ alert('Escribe la descripción.'); return; }
+  await sb.from('tm_refacciones').insert({servicio_id:id,descripcion:d,
+    cantidad:parseInt(document.getElementById('nr-cant').value)||1,
+    costo:parseFloat(document.getElementById('nr-costo').value)||0});
+  await cargarTodo();
+}
+async function delRef(refId){ if(!confirm('¿Eliminar refacción?')) return; await sb.from('tm_refacciones').delete().eq('id',refId); await cargarTodo(); }
+async function eliminarServicio(id,eco){
+  if(!confirm('¿Eliminar el servicio '+(eco||'')+'? No se puede deshacer.')) return;
+  const { error }=await sb.from('tm_servicios').delete().eq('id',id);
+  if(error){ alert('No se pudo eliminar: '+error.message); return; }
+  if(activeId===id) cerrar();
+  await cargarTodo();
+}
+
+function exportarExcel(){
+  const fp=document.getElementById('f-plaza').value, fe=document.getElementById('f-est').value;
+  const fb=(document.getElementById('f-buscar').value||'').trim().toLowerCase();
+  const rows=servicios.filter(s=>{
+    const mP=fp==='Todos'||norm(s.plaza)===norm(fp);
+    const mE=fe==='Todos'||s.estatus===fe;
+    const blob=[s.economico,s.ot,s.cot,s.serie,s.placas,s.vehiculo,s.conductor].join(' ').toLowerCase();
+    return mP&&mE&&(!fb||blob.includes(fb));
+  }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
+  if(!rows.length){ alert('No hay registros que exportar.'); return; }
+  const plazaLabel=fp==='Todos'?'Todas las plazas':fp;
+  const he=v=>(v===undefined||v===null?'':v.toString()).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const dinero=true;              // el desglose de montos lo ven todos
+  const verUtilidad=veDinero();   // la utilidad, solo gerencia/contabilidad
+  const headers=['ECONOMICO','OT','COT','PLAZA','MARCA','MODELO','AÑO','PLACAS','SERIE','KM','CONDUCTOR','MECANICO','DIAGNOSTICO','ESTATUS','DIAS EN PASO']
+    .concat(['COSTO PIEZAS','PIEZAS +'+Math.round((CFG.markup_piezas-1)*100)+'%','MANO DE OBRA','SUBTOTAL','IVA','TOTAL C/IVA'])
+    .concat(verUtilidad?['UTILIDAD']:[])
+    .concat(['REFACCIONES','INGRESO']);
+  let tc=0,tp=0,tm=0,tsub=0,tiva=0,tv=0,tu=0,body='';
+  const porEstatus={}, porPlaza={};
+  rows.forEach(s=>{
+    const t=totales(s); tc+=t.costo; tp+=t.piezasCliente; tm+=t.mo; tsub+=t.subtotal; tiva+=t.iva; tv+=t.total; tu+=t.utilidad;
+    porEstatus[s.estatus]=porEstatus[s.estatus]||{n:0,sub:0,tot:0,util:0};
+    porEstatus[s.estatus].n++; porEstatus[s.estatus].sub+=t.subtotal; porEstatus[s.estatus].tot+=t.total; porEstatus[s.estatus].util+=t.utilidad;
+    porPlaza[s.plaza]=porPlaza[s.plaza]||{n:0,tot:0,util:0};
+    porPlaza[s.plaza].n++; porPlaza[s.plaza].tot+=t.total; porPlaza[s.plaza].util+=t.utilidad;
+    const det=refsDe(s.id).map(p=>`${p.cantidad}x ${p.descripcion}`).join(' | ');
+    let c=[s.economico,s.ot,s.cot,s.plaza,s.marca,s.modelo,s.anio,s.placas,s.serie,s.kilometraje,s.conductor,s.mecanico,s.diagnosticos||s.falla,s.estatus,diasEnPaso(s)];
+    c=c.concat([t.costo.toFixed(2),t.piezasCliente.toFixed(2),t.mo.toFixed(2),t.subtotal.toFixed(2),t.iva.toFixed(2),t.total.toFixed(2)]);
+    if(verUtilidad) c=c.concat([t.utilidad.toFixed(2)]);
+    c=c.concat([det,s.fecha_recepcion]);
+    body+='<tr>'+c.map(x=>`<td style="border:1px solid #cfd6e4;padding:5px 7px;mso-number-format:'\\@';">${he(x)}</td>`).join('')+'</tr>';
+  });
+  const nCols=headers.length;
+  const sumas=[tc,tp,tm,tsub,tiva,tv].concat(verUtilidad?[tu]:[]);
+  const tot=`<tr><td colspan="15" style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;text-align:right;background:#eef2fb;">TOTALES — ${rows.length} servicios</td>${sumas.map(v=>`<td style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;background:#eef2fb;">${v.toFixed(2)}</td>`).join('')}<td colspan="2" style="border:1px solid #cfd6e4;background:#eef2fb;"></td></tr>`;
+  const hh=headers.map(h=>`<th style="background:#1f2340;color:#fff;border:1px solid #1f2340;padding:7px;font-size:11px;text-align:left;white-space:nowrap;">${he(h)}</th>`).join('');
+  const tabla=`<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;"><tr><td colspan="${nCols}" style="background:#0f1330;color:#fff;padding:10px;font-size:15px;font-weight:bold;">SITEL AUTOMOTRIZ &mdash; Taller Manager &nbsp;|&nbsp; Plaza: ${he(plazaLabel)}${fe!=='Todos'?' &nbsp;|&nbsp; Estatus: '+he(fe):''}${fb?' &nbsp;|&nbsp; Búsqueda: "'+he(fb)+'"':''} &nbsp;|&nbsp; ${new Date().toLocaleDateString('es-MX')} &nbsp;|&nbsp; ${rows.length} servicios (usa los filtros ▾ de la cabecera)</td></tr><tr>${hh}</tr>${body}${tot}</table>`;
+
+  // Hoja RESUMEN (tabla dinámica lista)
+  const box=(t)=>`<td style="border:1px solid #cfd6e4;padding:6px 9px;">${t}</td>`;
+  const th=(t)=>`<th style="background:#1f2340;color:#fff;border:1px solid #1f2340;padding:7px;text-align:left;">${t}</th>`;
+  const ORDEN=PIPELINE.concat(ESPECIALES);
+  const filasEst=ORDEN.filter(e=>porEstatus[e]).map((e,i)=>{
+    const d=porEstatus[e]; const paso=PIPELINE.indexOf(e); const num=paso>=0?(paso+1):'—';
+    return `<tr>${box(num)}${box(he(e))}${box(d.n)}${box(d.tot.toFixed(2))}${verUtilidad?box(d.util.toFixed(2)):''}</tr>`;
+  }).join('');
+  const filasPlaza=Object.keys(porPlaza).sort().map(p=>{
+    const d=porPlaza[p];
+    return `<tr>${box(he(p))}${box(d.n)}${box(d.tot.toFixed(2))}${verUtilidad?box(d.util.toFixed(2)):''}</tr>`;
+  }).join('');
+  const g=(arr)=>arr.reduce((a,e)=>a+(porEstatus[e]?porEstatus[e].n:0),0);
+  const gm=(arr)=>arr.reduce((a,e)=>a+(porEstatus[e]?porEstatus[e].tot:0),0);
+  const resumen=`
+  <table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;">
+   <tr><td colspan="5" style="background:#0f1330;color:#fff;padding:10px;font-size:15px;font-weight:bold;">RESUMEN &mdash; ${he(plazaLabel)} &nbsp;|&nbsp; ${new Date().toLocaleDateString('es-MX')}</td></tr>
+   <tr><td colspan="5" style="height:8px;"></td></tr>
+   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">EN QUÉ ESTÁ EL TRABAJO</td></tr>
+   <tr>${th('Grupo')}${th('Servicios')}${th('Total c/IVA')}<th></th><th></th></tr>
+   <tr>${box('<b>Esperando autorización</b>')}${box(g(GRUPOS.auth.estatus))}${box(gm(GRUPOS.auth.estatus).toFixed(2))}<td></td><td></td></tr>
+   <tr>${box('<b>En taller</b>')}${box(g(GRUPOS.taller.estatus))}${box(gm(GRUPOS.taller.estatus).toFixed(2))}<td></td><td></td></tr>
+   <tr>${box('<b>Por facturar</b>')}${box(g(GRUPOS.porfact.estatus))}${box(gm(GRUPOS.porfact.estatus).toFixed(2))}<td></td><td></td></tr>
+   <tr>${box('<b>Rechazados</b>')}${box(porEstatus['No Autorizado / Rechazado']?porEstatus['No Autorizado / Rechazado'].n:0)}${box('')}<td></td><td></td></tr>
+   <tr><td colspan="5" style="height:12px;"></td></tr>
+   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">DETALLE POR PASO</td></tr>
+   <tr>${th('Paso')}${th('Etapa')}${th('Servicios')}${th('Total c/IVA')}${verUtilidad?th('Utilidad'):''}</tr>
+   ${filasEst}
+   <tr><td colspan="5" style="height:12px;"></td></tr>
+   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">POR PLAZA</td></tr>
+   <tr>${th('Plaza')}${th('Servicios')}${th('Total c/IVA')}${verUtilidad?th('Utilidad'):''}<th></th></tr>
+   ${filasPlaza}
+   ${verUtilidad?`<tr><td colspan="5" style="height:12px;"></td></tr>
+   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">DINERO</td></tr>
+   <tr>${box('Costo de piezas')}${box(tc.toFixed(2))}<td></td><td></td><td></td></tr>
+   <tr>${box('Mano de obra')}${box(tm.toFixed(2))}<td></td><td></td><td></td></tr>
+   <tr>${box('Subtotal')}${box(tsub.toFixed(2))}<td></td><td></td><td></td></tr>
+   <tr>${box('IVA')}${box(tiva.toFixed(2))}<td></td><td></td><td></td></tr>
+   <tr>${box('<b>Total con IVA</b>')}${box('<b>'+tv.toFixed(2)+'</b>')}<td></td><td></td><td></td></tr>
+   <tr>${box('<b>Utilidad bruta</b>')}${box('<b>'+tu.toFixed(2)+'</b>')}<td></td><td></td><td></td></tr>`:''}
+  </table>`;
+
+  const libro='\uFEFF<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8">'
+   +'<xml><x:ExcelWorkbook><x:ExcelWorksheets>'
+   +'<x:ExcelWorksheet><x:Name>Resumen</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>'
+   +'<x:ExcelWorksheet><x:Name>Detalle</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'
+   +`<x:AutoFilter x:Range="R2C1:R${rows.length+2}C${nCols}"/>`
+   +'</x:ExcelWorksheet>'
+   +'</x:ExcelWorksheets></x:ExcelWorkbook></xml></head><body>'
+   +resumen+'<br style="page-break-before:always">'+tabla+'</body></html>';
+  const blob=new Blob([libro],{type:'application/vnd.ms-excel;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`Reporte_${fp==='Todos'?'Todas_las_plazas':fp.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.xls`; a.click();
+}
+async function logout(){ await sb.auth.signOut(); location.reload(); }
+(async()=>{ const { data:{ session } }=await sb.auth.getSession(); if(session) await iniciar(session.user); })();
+</script>
+
+<!-- ===== CAMBIO DE CONTRASEÑA ===== -->
+<div id="pw-modal" style="display:none; position:fixed; inset:0; background:rgba(5,6,15,.78); z-index:200; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:linear-gradient(180deg,#20244a,#191c3c); border:1px solid rgba(255,255,255,.1); border-radius:18px; padding:28px; width:100%; max-width:390px; box-shadow:0 30px 80px rgba(0,0,0,.6);">
+    <h3 style="font-size:17px; font-weight:800; margin-bottom:6px;">🔑 Cambiar mi contraseña</h3>
+    <p style="font-size:12px; color:#8b93b8; line-height:1.5; margin-bottom:18px;">Elige una contraseña nueva. Mínimo 8 caracteres. Nadie más debe conocerla.</p>
+    <input type="password" id="pw-1" placeholder="Nueva contraseña" autocomplete="new-password"
+      style="width:100%; padding:11px 13px; margin-bottom:10px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#eef1fb; font-size:14px; font-family:inherit;">
+    <input type="password" id="pw-2" placeholder="Repite la contraseña" autocomplete="new-password"
+      style="width:100%; padding:11px 13px; margin-bottom:12px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#eef1fb; font-size:14px; font-family:inherit;">
+    <div id="pw-msg" style="font-size:12px; min-height:17px; margin-bottom:12px; line-height:1.4;"></div>
+    <div style="display:flex; gap:9px;">
+      <button onclick="cerrarPw()" style="flex:1; padding:11px; background:none; border:1px solid rgba(255,255,255,.14); color:#8b93b8; border-radius:10px; cursor:pointer; font-weight:700; font-size:13px; font-family:inherit;">Cancelar</button>
+      <button id="pw-btn" onclick="guardarPw()" style="flex:1.4; padding:11px; background:linear-gradient(135deg,#0e9f6e,#22d39a); border:none; color:#04331f; border-radius:10px; cursor:pointer; font-weight:800; font-size:13px; font-family:inherit;">Guardar</button>
+    </div>
+  </div>
+</div>
+<script>
+function abrirPw(){
+  document.getElementById('pw-1').value='';
+  document.getElementById('pw-2').value='';
+  document.getElementById('pw-msg').textContent='';
+  document.getElementById('pw-modal').style.display='flex';
+  setTimeout(()=>document.getElementById('pw-1').focus(),80);
+}
+function cerrarPw(){ document.getElementById('pw-modal').style.display='none'; }
+async function guardarPw(){
+  const a=document.getElementById('pw-1').value, b=document.getElementById('pw-2').value;
+  const msg=document.getElementById('pw-msg'), btn=document.getElementById('pw-btn');
+  msg.style.color='#ff8f9a';
+  if(a.length<8){ msg.textContent='La contraseña debe tener al menos 8 caracteres.'; return; }
+  if(a!==b){ msg.textContent='Las dos contraseñas no son iguales.'; return; }
+  btn.disabled=true; btn.textContent='Guardando...';
+  const {error}=await sb.auth.updateUser({password:a});
+  btn.disabled=false; btn.textContent='Guardar';
+  if(error){
+    msg.textContent = /weak|short|least/i.test(error.message)
+      ? 'Esa contraseña es muy débil. Usa letras, números y algún símbolo.'
+      : 'No se pudo cambiar: '+error.message;
+    return;
+  }
+  msg.style.color='#22d39a';
+  msg.textContent='✓ Contraseña actualizada. Úsala la próxima vez que entres.';
+  setTimeout(cerrarPw, 2200);
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && document.getElementById('pw-modal').style.display==='flex') cerrarPw();
+  if(e.key==='Enter' && document.getElementById('pw-modal').style.display==='flex') guardarPw();
+});
+</script>
+
+</body>
+</html>

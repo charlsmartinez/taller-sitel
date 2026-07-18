@@ -1,0 +1,119 @@
+el error ahí en la captura note que solo no deja subir las evidencias, desconozco por que, pues al entrar al panel veras que hice unas pruebas y si se subieron los registros pero sin evidencia y al no poder subir ninguna evidencia no pude avanzar en el flujo para mostrarlo en tiempo real, me dijiste que no fallaría, solucionalo por favor sumado a este feedback.
+
+*crear acceso para un gerente con los mismos permisos que el admin por el momento
+
+*pendiente de autorización si pasan mas de 15 de un folio en este paso obtener una notificación de emergente de no autorizado para proceder al cobro del diagnostico. 50% del valor de la mano de obra 
+
+*a veces el cliente trabaja sobre la misma OT una o varias cotizaciones por si se encuentra algún caso asi, entra en la misma factura.
+
+*los exportes de Excel desde el ERP deben salir en un formato de tabla dinámica, donde vengan sus mismos totales, trabajos pendientes, falta de aut, etc. los que creas mas principales
+
+*total al cliente agregar iva
+
+*al momento que el mecanico suba su evidencia pasamos al estatus 2 ya que asi como esta pareciera que vamos con un paso de desfase ayúdame a optimizarlo
+
+*el costo sobre las piezas será del 20% con posibilidad de modificación
+
+*en el paso de reparado (6) las 7 fotos principales para entrega de que la unidad ya esta lista y el paso siguiente la evidencia del correo con la Ot de entrega y en el paso de entregado el documento firmado por quien recibe la unidad
+
+*poder descargar las fotos de las evidencias cargadas de cualquier paso
+
+*para el generalista, lo que tiene pendiente, lo que tiene en proceso, y pendiente de fac 
+
+*totales de cantidades importantes no visibles para los supervisores solamente los totales que les son de funcionalidad para continuar sus actividades
+
+*contabilidad solo tiene acceso al paso 10 y al paso 13 el paso 11 y 12 vuelven a ser del generalista asi como la responsabilidad de subir sus evidencias correspondientes
+
+
+ESTE ES EL FLUJO DE LAS EVIDENCIAS SEGUN EL FEEDBACK
+1 Diagnóstico 
+Mecánico
+Registra la unidad y toma las fotos de recepción 7 fotos obligatorias
+
+2 Cotización 
+Supervisor 
+El generalista arma la cotización - Foto/PDF de la cotización
+
+3 Pendiente de Autorización
+Supervisor 
+envía la cotización al cliente - envío del correo con la cotización al cliente para su autorizacion
+
+4 Autorizado 
+Supervisor 
+El cliente envía su visto bueno con la OT - Foto del correo + OT + COT
+
+5 Compra de Refacciones y Reparación
+Supervisor 
+Compra piezas y el mecánico repara - Ticket o factura de compra de las refacciones
+
+6 Reparado 
+Supervisor 
+El mecánico termina la reparación- Foto de refacciones cambiadas y nuevamente las 7 fotos principales de la unidad previas a la entrega
+
+7 Pendiente de OT 
+Supervisor 
+Se espera la OT para poder entregar - correo de la OT por parte del cliente
+
+8 Auto Entregado 
+Supervisor 
+Se entrega la unidad al cliente - Correo con OT + formato de entrega con la firma e identificación de quien recibe la unidad 
+
+9 Envío de OT a Contabilidad
+Supervisor 
+Envía la OT a contabilidad - correo de envío de la info a contabilidad
+
+10 Pendiente de Factura 
+Contabilidad 
+Contabilidad recibe la OT y prepara la factura - correo de recepción de OT.
+
+11 Contabilidad Emitió Factura
+Contabilidad  
+Se emite la factura - Factura + número + fecha
+
+12 Se Envía Factura a Telmex
+Supervisor  
+Entrega la factura al cliente - evidencia del envío a Telmex de dicha factura
+
+13 Factura Pagada 
+Contabilidad 
+El cliente paga Proceso cerrado - Comprobante de pago + fecha
+
+necesito saber también que pasara con netifly por que dice algo de que quedan pocos créditos, si es que va a haber otro gasto independiente al plan pro de supabase ya debemos de contemplarlo, todos y cada uno de los gastos para que no falle el sistema por nada.
+
+
+_______________________________________
+
+*km no obligatorio en el registro del mecanico ni el vin no obligatorio
+
+*cuando entra admin al apartado de registro de unidades con sus contraseña no sean obvligatorios los campos por casos donde caen servicios a cotización y no se tiene la unidad en vivo
+
+*los totales debajo de de los estatus igual para los super que no sea visible esos totales, con los que se modifican en la parte superior con esos 
+
+*en el desglose de las piezas un apartado que el super lo llene con el provedoor donde va a comprar las piezas 
+en flujo (2) formato con llenado automatico para que esta evidencia se mate con ese formato al menos en este paso.
+
+*el cot se genera desde el paso uno con la formula para formar el folio COT
+paso (5) una o mas evidencias del ticket o de los tickets y un apartado que diga reparación local o externo
+
+*en el paso 6 de reparado para subir evidencias de refacciones compradas y colocadas pueda ser una o mas aparte de las 7 fotos principales de que se reparo y fotos extras.
+
+*las evidencias en contabilidad ya no son necesarias todas, solo la de la cotización del paso 2, la ot del paso 7, el formato de entrega con identificación
+
+*en el paso 10 de contabilidad los contadores generan factura y es lo que deben subir de evidencia para avanzar el flujo PDF y XML
+
+*en el paso 11 en lugar de subir evidencia, poder descargar el pdf de la fac y el xml que subio contabilidad en el paso anterior, la cotización del paso 2 el formato firmado de recibido y la OT del paso 7 y el correo de autorización del paso 4, todo eso en modo de descargar o un botón de mandar a imprimir, por que eso necesita entregarlo con el cliente en físico y si un apartado de subir evidencia de recepción de la factura entregada a Telmex (física o digital)
+
+*en el paso 12 solamente la fecha de pago 
+
+*el flujo de envió a OT a contabilidad se elimina
+
+*el botón de rechazado debe estar en el paso 3 de ahí se sabra si el flujo sigue o se queda hasta ese punto.
+
+*en el paso 2 en caso de ser garantía el generalista selecciona ese apartado, de no ser seleccionado entra al flujo normal y de ser seleccionado garantía debe abrir el mismo flujo pero sin candados y en el resto de los flujos quitar ese botón de garantía únicamente en el paso 2 debe estar visible.
+
+
+
+
+
+
+

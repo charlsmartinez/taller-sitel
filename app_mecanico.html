@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Recepción de Unidad — Taller Manager</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0c1b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Taller Manager">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root{
+  --bg1:#0d0f20; --bg2:#1b1e3d; --card:#20244a; --card2:#191c3c;
+  --ink:#eef1fb; --muted:#9aa3c7; --line:rgba(255,255,255,.10);
+  --cyan:#00d0e6; --indigo:#5f8bff; --green:#22d39a; --amber:#f5b800; --red:#ff5f76;
+  --font:'Inter','Segoe UI',Tahoma,sans-serif;
+}
+*{ box-sizing:border-box; margin:0; padding:0; font-family:var(--font); -webkit-tap-highlight-color:transparent; }
+body{ background:radial-gradient(900px 500px at 80% -10%, #262a55 0%, transparent 55%), linear-gradient(160deg,var(--bg2),var(--bg1)); color:var(--ink); min-height:100vh; -webkit-font-smoothing:antialiased; }
+.wrap{ max-width:520px; margin:0 auto; padding:20px 16px 60px; }
+.top{ text-align:center; padding:14px 0 18px; }
+.top h1{ font-size:13px; font-weight:800; letter-spacing:2px; background:linear-gradient(90deg,#7ee8f2,var(--cyan)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.top p{ font-size:20px; font-weight:900; letter-spacing:-.4px; margin-top:2px; }
+.top .plaza{ display:inline-block; margin-top:8px; font-size:12px; font-weight:700; color:var(--cyan); background:rgba(0,208,230,.1); border:1px solid rgba(0,208,230,.3); padding:5px 12px; border-radius:999px; }
+.card{ background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--line); border-radius:18px; padding:20px; margin-bottom:16px; }
+.card h2{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:6px; }
+.card .hint{ font-size:11.5px; color:var(--muted); margin-bottom:14px; }
+label{ display:block; font-size:12px; font-weight:600; color:#c3cae8; margin-bottom:6px; }
+label .req{ color:var(--red); }
+input, textarea, select{ color-scheme:dark; width:100%; padding:13px 14px; border:1.5px solid var(--line); border-radius:12px; font-size:15px; background:#12142b; color:var(--ink); outline:none; transition:.15s; margin-bottom:14px; }
+input:focus, textarea:focus, select:focus{ border-color:var(--cyan); box-shadow:0 0 0 4px rgba(0,208,230,.14); }
+input.err{ border-color:var(--red); }
+textarea{ min-height:80px; resize:vertical; }
+.row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+/* Diagnósticos */
+.diag{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+.chip{ font-size:12.5px; font-weight:600; padding:9px 13px; border-radius:999px; border:1.5px solid var(--line); background:rgba(255,255,255,.03); color:#c3cae8; cursor:pointer; transition:.15s; user-select:none; }
+.chip.on{ background:linear-gradient(135deg,rgba(0,208,230,.25),rgba(95,139,255,.18)); border-color:var(--cyan); color:#fff; }
+/* Refacciones */
+.ref{ display:grid; grid-template-columns:1fr 62px 40px; gap:8px; margin-bottom:8px; align-items:center; }
+.ref input{ margin-bottom:0; padding:11px; font-size:14px; }
+.btn-x{ background:rgba(255,90,106,.12); color:#ff8f9a; border:1px solid rgba(255,90,106,.35); border-radius:10px; height:44px; cursor:pointer; font-weight:900; }
+.btn-add-ref{ width:100%; background:rgba(95,139,255,.10); border:1.5px dashed var(--indigo); color:#9fb6ff; border-radius:12px; padding:12px; font-weight:700; cursor:pointer; font-size:13px; margin-top:4px; }
+/* Fotos */
+.fotos{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.foto{ position:relative; border:2px dashed var(--line); border-radius:14px; min-height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; cursor:pointer; overflow:hidden; background:rgba(255,255,255,.02); transition:.15s; }
+.foto:active{ transform:scale(.98); }
+.foto.done{ border-style:solid; border-color:var(--green); }
+.foto .emoji{ font-size:26px; margin-bottom:6px; }
+.foto .lbl{ font-size:11px; font-weight:700; color:var(--muted); padding:0 6px; }
+.foto.done .lbl{ color:var(--green); }
+.foto img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.foto .check{ position:absolute; top:6px; right:6px; background:var(--green); color:#04331f; width:22px; height:22px; border-radius:50%; display:none; align-items:center; justify-content:center; font-weight:900; font-size:12px; }
+.foto.done .check{ display:flex; }
+.foto input{ display:none; }
+.btn{ width:100%; padding:16px; border:none; border-radius:14px; font-size:16px; font-weight:800; cursor:pointer; transition:.15s; }
+.btn-main{ background:linear-gradient(135deg,var(--indigo),var(--cyan)); color:#04121a; box-shadow:0 10px 26px rgba(95,139,255,.4); }
+.btn-main:active{ transform:translateY(1px); } .btn-main:disabled{ opacity:.5; }
+.btn-ghost{ background:rgba(255,255,255,.06); color:#c3cae8; border:1px solid var(--line); margin-top:10px; }
+.msg{ text-align:center; font-size:13px; margin-top:14px; font-weight:600; min-height:18px; }
+.msg.err{ color:var(--red); } .msg.ok{ color:var(--green); }
+#login{ position:fixed; inset:0; background:linear-gradient(160deg,var(--bg2),var(--bg1)); display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; }
+#login .card{ width:100%; max-width:380px; }
+#done{ display:none; position:fixed; inset:0; background:rgba(10,12,28,.96); z-index:200; flex-direction:column; align-items:center; justify-content:center; padding:30px; text-align:center; }
+#done .big{ font-size:60px; margin-bottom:10px; }
+#done h3{ font-size:22px; font-weight:900; margin-bottom:8px; }
+#done p{ color:var(--muted); font-size:14px; margin-bottom:26px; }
+.spin{ display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:sp .7s linear infinite; vertical-align:middle; margin-right:8px; }
+@keyframes sp{ to{ transform:rotate(360deg); } }
+.hide{ display:none !important; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="card">
+    <div class="top" style="padding-top:0;"><img src="logo.png" alt="SITEL Taller Mecánico" style="width:124px;height:auto;margin:0 auto 10px;display:block;filter:drop-shadow(0 3px 12px rgba(0,0,0,.45));"><h1>SITEL AUTOMOTRIZ</h1><p>Recepción de Unidad</p></div>
+    <label>Correo</label>
+    <input type="email" id="email" placeholder="mecanico@plaza.com" autocomplete="username">
+    <label>Contraseña</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn btn-main" onclick="login()" id="btn-login">Ingresar</button>
+    <div class="msg err" id="login-msg"></div>
+  </div>
+</div>
+
+<!-- Elegir tarea: recibir una unidad o subir evidencias de una reparación -->
+<div class="wrap hide" id="menu">
+  <div class="top">
+    <img src="logo.png" alt="SITEL Taller Mecánico" style="width:100px;height:auto;margin:0 auto 8px;display:block;filter:drop-shadow(0 3px 11px rgba(0,0,0,.45));">
+    <h1>SITEL AUTOMOTRIZ</h1>
+    <p id="menu-quien">—</p>
+    <div class="plaza" id="menu-plaza">—</div>
+  </div>
+  <div class="card">
+    <h2>¿Qué vas a hacer?</h2>
+    <div class="hint">Elige la tarea. Puedes cambiar cuando quieras.</div>
+    <button class="btn btn-main" style="margin-bottom:10px;" onclick="irA('recepcion')">📋 Recibir una unidad<br><span style="font-weight:400;font-size:12px;opacity:.85;">Diagnóstico inicial y fotos de recepción</span></button>
+    <button class="btn btn-main" style="background:linear-gradient(135deg,#22d39a,#12a878);" onclick="irA('reparacion')">🔧 Subir evidencias de reparación<br><span style="font-weight:400;font-size:12px;opacity:.85;">Refacciones y fotos de la unidad lista</span></button>
+  </div>
+  <button class="btn btn-ghost" onclick="abrirPw()" style="margin-bottom:8px;">🔑 Cambiar mi contraseña</button>
+  <button class="btn btn-ghost" onclick="logout()">Cerrar sesión</button>
+</div>
+
+<!-- Paso 6: evidencias de reparación -->
+<div class="wrap hide" id="rep">
+  <div class="top">
+    <img src="logo.png" alt="SITEL" style="width:76px;height:auto;margin:0 auto 6px;display:block;filter:drop-shadow(0 2px 8px rgba(0,0,0,.4));">
+    <h1>Evidencias de reparación</h1>
+    <p>Unidades listas para entregar</p>
+    <div class="plaza" id="rep-plaza">—</div>
+  </div>
+  <div class="card">
+    <h2>Elige la unidad</h2>
+    <div class="hint">Solo aparecen las que están en <b>Reparado</b>, esperando evidencias.</div>
+    <div id="rep-lista"></div>
+  </div>
+  <div id="rep-detalle" class="hide"></div>
+  <button class="btn btn-ghost" onclick="irA('menu')">← Volver al menú</button>
+</div>
+
+<div class="wrap hide" id="app">
+  <div class="top">
+    <img src="logo.png" alt="SITEL Taller Mecánico" style="width:82px;height:auto;margin:0 auto 6px;display:block;filter:drop-shadow(0 2px 9px rgba(0,0,0,.4));">
+    <h1>SITEL AUTOMOTRIZ</h1>
+    <p>Recepción de Unidad</p>
+    <div class="plaza" id="plaza-badge">—</div>
+  </div>
+
+  <div class="card">
+    <h2>Datos de la unidad</h2>
+    <div class="hint">Todos los campos son obligatorios.</div>
+    <label>Económico <span class="req">*</span></label>
+    <input type="text" id="f-economico" placeholder="No. económico">
+    <div class="row2">
+      <div><label>Marca <span class="req">*</span></label><input type="text" id="f-marca" placeholder="Ej. Chevrolet"></div>
+      <div><label>Modelo <span class="req">*</span></label><input type="text" id="f-modelo" placeholder="Ej. Spark"></div>
+    </div>
+    <div class="row2">
+      <div><label>Año <span class="req">*</span></label><input type="text" id="f-anio" placeholder="Ej. 2012" inputmode="numeric"></div>
+      <div><label>Placa <span class="req">*</span></label><input type="text" id="f-placas" placeholder="Placas"></div>
+    </div>
+    <label>Número de serie (VIN) <span class="req">*</span></label>
+    <input type="text" id="f-serie" placeholder="VIN">
+    <div class="row2">
+      <div><label>Kilometraje <span class="req">*</span></label><input type="text" id="f-km" placeholder="Km del odómetro" inputmode="numeric"></div>
+      <div><label>Fecha de ingreso <span class="req">*</span></label><input type="date" id="f-fecha"></div>
+    </div>
+  </div>
+
+  <div class="card hide" id="plaza-sel-box">
+    <h2>Plaza</h2>
+    <div class="hint">Tu usuario ve todas las plazas. Indica en cuál se está recibiendo la unidad.</div>
+    <select id="f-plaza"></select>
+  </div>
+
+  <div class="card">
+    <h2>Diagnóstico inicial</h2>
+    <div class="hint">Selecciona uno o varios. Puedes agregar comentarios.</div>
+    <input type="text" id="f-filtro-diag" placeholder="🔍 Filtrar: balatas, motor, batería..." autocomplete="off" style="margin-bottom:10px;">
+    <div class="diag" id="diag-list" style="max-height:320px;overflow-y:auto;"></div>
+
+    <div id="otro-box" class="hide" style="margin-bottom:14px;">
+      <label>Especifica el diagnóstico <span class="req">*</span></label>
+      <input type="text" id="f-otro" placeholder="Escribe el diagnóstico">
+    </div>
+    <label>Comentarios adicionales</label>
+    <textarea id="f-falla" placeholder="Describe lo que observaste..."></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Refacciones que se requieren</h2>
+    <div class="hint">Lo que crees necesario para iniciar o terminar el trabajo. Opcional — los costos los captura el supervisor.</div>
+    <div id="refs-list"></div>
+    <button class="btn-add-ref" onclick="addRef()">＋ Agregar refacción</button>
+  </div>
+
+  <div class="card">
+    <h2>Evidencia fotográfica (7)</h2>
+    <div class="hint">Las 7 son obligatorias. Toca una foto para volver a tomarla.</div>
+    <div class="fotos" id="fotos"></div>
+  </div>
+
+  <div class="card">
+    <h2>Fotos extra (opcional)</h2>
+    <div class="hint">Pieza dañada, detalles, lo que quieras documentar.</div>
+    <div class="fotos" id="extras-grid"></div>
+  </div>
+
+  <button class="btn btn-main" onclick="enviar()" id="btn-enviar">📤 Registrar ingreso</button>
+  <button class="btn btn-ghost" onclick="irA('menu')" style="margin-bottom:8px;">← Volver al menú</button>
+  <button class="btn btn-ghost" onclick="logout()">Cerrar sesión</button>
+  <div class="msg" id="msg"></div>
+</div>
+
+<div id="done">
+  <div class="big">✅</div>
+  <h3>¡Unidad registrada!</h3>
+  <p id="done-txt">La orden ya está en el panel, en "Diagnóstico".</p>
+  <button class="btn btn-main" style="max-width:300px;" onclick="nuevaOrden()">Registrar otra unidad</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://weggfkvhjtxbzihgetzu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ErvGJRqEMKRC9FdJuZ9mig_Bb7vOFxT';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const TIPOS = [
+  {k:'frontal', l:'Frontal', e:'🚗'}, {k:'lateralDer', l:'Lateral Der.', e:'↔️'},
+  {k:'lateralIzq', l:'Lateral Izq.', e:'↔️'}, {k:'trasera', l:'Trasera', e:'🔙'},
+  {k:'tablero', l:'Tablero', e:'📊'}, {k:'motor', l:'Motor', e:'🛠️'}, {k:'odometro', l:'Odómetro', e:'🔢'}
+];
+let fotos = {}, extras = [], profile = null, diagSel = new Set(), refsTmp = [], otroOn = false;
+
+const fotosEl = document.getElementById('fotos');
+TIPOS.forEach(t => {
+  const d = document.createElement('label'); d.className='foto'; d.id='slot-'+t.k;
+  d.innerHTML = `<span class="check">✓</span><span class="emoji">${t.e}</span><span class="lbl">${t.l}</span>
+    <input type="file" accept="image/*" capture="environment" onchange="onFoto('${t.k}', this)">`;
+  fotosEl.appendChild(d);
+});
+
+function renderExtras(){
+  const g=document.getElementById('extras-grid'); g.innerHTML='';
+  extras.forEach((blob,i)=>{
+    const d=document.createElement('div'); d.className='foto done';
+    d.innerHTML=`<img src="${URL.createObjectURL(blob)}"><button onclick="removeExtra(${i})" style="position:absolute;top:6px;right:6px;background:rgba(255,90,106,.92);color:#fff;border:none;border-radius:50%;width:26px;height:26px;font-weight:900;cursor:pointer;z-index:3;">✕</button>`;
+    g.appendChild(d);
+  });
+  const add=document.createElement('label'); add.className='foto'; add.style.minHeight='120px';
+  add.innerHTML=`<span class="emoji">➕</span><span class="lbl">Agregar foto</span><input type="file" accept="image/*" capture="environment" onchange="onExtra(this)">`;
+  g.appendChild(add);
+}
+async function onExtra(input){ const f=input.files[0]; if(!f) return; extras.push(await comprimir(f)); renderExtras(); }
+function removeExtra(i){ extras.splice(i,1); renderExtras(); }
+renderExtras();
+
+function renderRefs(){
+  const c=document.getElementById('refs-list'); c.innerHTML='';
+  refsTmp.forEach((r,i)=>{
+    const d=document.createElement('div'); d.className='ref';
+    d.innerHTML=`<input type="text" placeholder="Descripción de la refacción" value="${(r.desc||'').replace(/"/g,'&quot;')}" oninput="refsTmp[${i}].desc=this.value">
+      <input type="number" min="1" placeholder="Cant." value="${r.cant||1}" oninput="refsTmp[${i}].cant=this.value">
+      <button class="btn-x" onclick="delRef(${i})">✕</button>`;
+    c.appendChild(d);
+  });
+}
+function addRef(){ refsTmp.push({desc:'',cant:1}); renderRefs(); }
+function delRef(i){ refsTmp.splice(i,1); renderRefs(); }
+
+function comprimir(file){ return new Promise(res=>{ const img=new Image(), u=URL.createObjectURL(file);
+  img.onload=()=>{ const max=1280; let{width:w,height:h}=img; if(w>h&&w>max){h=h*max/w;w=max;} else if(h>max){w=w*max/h;h=max;}
+    const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(u); c.toBlob(b=>res(b),'image/jpeg',0.7); };
+  img.onerror=()=>res(file); img.src=u; }); }
+
+async function onFoto(tipo, input){
+  const f=input.files[0]; if(!f) return;
+  const blob=await comprimir(f); fotos[tipo]=blob;
+  const s=document.getElementById('slot-'+tipo); s.classList.add('done');
+  if(!s.querySelector('img')){ const im=document.createElement('img'); s.insertBefore(im,s.firstChild); }
+  s.querySelector('img').src=URL.createObjectURL(blob);
+}
+
+async function login(){
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  const m=document.getElementById('login-msg'); m.textContent='';
+  const b=document.getElementById('btn-login'); b.disabled=true; b.innerHTML='<span class="spin"></span>Entrando...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ m.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Ingresar'; return; }
+  await cargarPerfil(data.user); b.disabled=false; b.textContent='Ingresar';
+}
+async function cargarPerfil(user){
+  const { data:prof, error } = await sb.from('tm_profiles').select('id,nombre,plaza_id,rol,tm_plazas(nombre)').eq('id',user.id).single();
+  if(error||!prof){ document.getElementById('login-msg').textContent='Tu usuario no tiene perfil asignado.'; await sb.auth.signOut(); return; }
+  if(prof.rol!=='mecanico' && prof.rol!=='admin' && prof.rol!=='gerente'){
+    document.getElementById('login-msg').textContent = prof.rol==='contabilidad'
+      ? 'Tu acceso es el panel de Contabilidad. Regresa al inicio y elige "Contabilidad".'
+      : 'Tu acceso es el Panel de Control. Regresa al inicio y elige "Panel de Control".';
+    await sb.auth.signOut(); return;
+  }
+  if(!prof.plaza_id && prof.rol!=='admin' && prof.rol!=='gerente'){
+    document.getElementById('login-msg').textContent='Tu usuario no tiene plaza asignada. Avisa al administrador.';
+    await sb.auth.signOut(); return;
+  }
+  profile={ id:prof.id, plaza_id:prof.plaza_id, plaza:prof.tm_plazas?prof.tm_plazas.nombre:'', nombre:prof.nombre||user.email };
+  document.getElementById('plaza-badge').textContent='📍 '+(profile.plaza||'Elige la plaza');
+  if(!profile.plaza_id) await mostrarSelectorPlaza();   // admin y gerencia no tienen plaza propia
+  document.getElementById('f-fecha').value=new Date().toISOString().slice(0,10);
+  await cargarDiagnosticos();
+  document.getElementById('login').classList.add('hide');
+  document.getElementById('menu-quien').textContent=profile.nombre||'Mecánico';
+  document.getElementById('menu-plaza').textContent='📍 '+(profile.plaza||'Todas las plazas');
+  irA('menu');
+}
+// ── Navegación entre pantallas ──
+let PLAZA_ELEGIDA=null;
+async function mostrarSelectorPlaza(){
+  const cont=document.getElementById('plaza-sel-box');
+  if(!cont) return;
+  cont.classList.remove('hide');
+  const { data } = await sb.from('tm_plazas').select('id,nombre').order('nombre');
+  const sel=document.getElementById('f-plaza');
+  sel.innerHTML='<option value="">— Selecciona la plaza —</option>'
+    + (data||[]).map(p=>`<option value="${p.id}|${p.nombre}">${p.nombre}</option>`).join('');
+  sel.onchange=()=>{
+    if(!sel.value){ PLAZA_ELEGIDA=null; document.getElementById('plaza-badge').textContent='📍 Elige la plaza'; return; }
+    const [id,nombre]=sel.value.split('|');
+    PLAZA_ELEGIDA={id,nombre};
+    document.getElementById('plaza-badge').textContent='📍 '+nombre;
+    const mp=document.getElementById('menu-plaza'); if(mp) mp.textContent='📍 '+nombre;
+  };
+}
+function irA(v){
+  // Los botones usan nombres amigables; se traducen al id real de cada pantalla
+  const MAPA={ recepcion:'app', reparacion:'rep', menu:'menu', app:'app', rep:'rep' };
+  const destino = MAPA[v] || v;
+  ['menu','app','rep'].forEach(x=>document.getElementById(x).classList.add('hide'));
+  document.getElementById('done').style.display='none';
+  const el=document.getElementById(destino);
+  if(!el){ console.error('Pantalla no encontrada:', v); document.getElementById('menu').classList.remove('hide'); return; }
+  el.classList.remove('hide');
+  window.scrollTo(0,0);
+  if(destino==='rep') cargarReparaciones();
+}
+
+// ── Paso 6: evidencias de reparación ──
+const EV_REP=[
+  {k:'refacciones_usadas',  n:'Refacciones que se quitaron', multi:true},
+  {k:'refacciones_compradas',n:'Refacciones cambiadas',      multi:true},
+  {k:'refacciones_montadas', n:'Refacciones montadas',       multi:true},
+  {k:'entrega_frontal',    n:'Frontal'},
+  {k:'entrega_lateralDer', n:'Lateral derecho'},
+  {k:'entrega_lateralIzq', n:'Lateral izquierdo'},
+  {k:'entrega_trasera',    n:'Trasera'},
+  {k:'entrega_tablero',    n:'Tablero'},
+  {k:'entrega_motor',      n:'Motor'},
+  {k:'entrega_odometro',   n:'Odómetro'}
+];
+let repOrdenes=[], repEvid={}, repActiva=null, repCount={};
+
+async function cargarReparaciones(){
+  const cont=document.getElementById('rep-lista');
+  cont.innerHTML='<div class="hint">Cargando...</div>';
+  document.getElementById('rep-plaza').textContent='📍 '+(profile.plaza||'Todas las plazas');
+  let q=sb.from('tm_servicios').select('id,economico,cot,marca,modelo,anio,placas,plaza,diagnosticos,estatus').eq('estatus','Reparado');
+  if(profile.plaza_id) q=q.eq('plaza_id',profile.plaza_id);
+  const { data, error } = await q.order('created_at',{ascending:false});
+  if(error){ cont.innerHTML='<div class="msg err">No se pudo cargar: '+error.message+'</div>'; return; }
+  repOrdenes=data||[];
+  if(!repOrdenes.length){ cont.innerHTML='<div class="hint" style="padding:14px 0;">No hay unidades esperando evidencias de reparación.</div>'; return; }
+  const ids=repOrdenes.map(o=>o.id);
+  const { data:ev } = await sb.from('tm_evidencias').select('servicio_id,tipo').in('servicio_id',ids);
+  repEvid={}; repCount={};
+  (ev||[]).forEach(e=>{
+    (repEvid[e.servicio_id]=repEvid[e.servicio_id]||new Set()).add(e.tipo);
+    const c=repCount[e.servicio_id]=repCount[e.servicio_id]||{};
+    c[e.tipo]=(c[e.tipo]||0)+1;
+  });
+  cont.innerHTML='';
+  repOrdenes.forEach(o=>{
+    const t=repEvid[o.id]||new Set();
+    const listas=EV_REP.filter(x=>t.has(x.k)).length;
+    const d=document.createElement('div');
+    d.style.cssText='border:1.5px solid var(--line);border-radius:12px;padding:13px;margin-bottom:9px;cursor:pointer;background:#12142b;';
+    d.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+        <div><div style="font-weight:800;font-size:15px;color:var(--ink);">${o.economico||'—'}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">${[o.marca,o.modelo,o.anio].filter(Boolean).join(' ')} · ${o.cot||''}</div></div>
+        <div style="text-align:right;"><div style="font-size:11px;font-weight:800;color:${listas===EV_REP.length?'#22d39a':'#ffb84d'};">${listas}/${EV_REP.length}</div>
+        <div style="font-size:10px;color:var(--muted);">evidencias</div></div></div>`;
+    d.onclick=()=>abrirReparacion(o.id);
+    cont.appendChild(d);
+  });
+}
+
+function abrirReparacion(id){
+  repActiva=id;
+  const o=repOrdenes.find(x=>x.id===id); if(!o) return;
+  const t=repEvid[id]||new Set();
+  const det=document.getElementById('rep-detalle');
+  det.classList.remove('hide');
+  const cnt=repCount[id]||{};
+  const bloque=(titulo,lista)=>`<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:14px 0 7px;">${titulo}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px;">${lista.map(x=>{
+      const ya=t.has(x.k); const n=cnt[x.k]||0;
+      return `<label style="border:1.5px dashed ${ya?'rgba(34,211,154,.5)':'var(--line)'};background:${ya?'rgba(34,211,154,.08)':'#12142b'};border-radius:11px;padding:11px 9px;text-align:center;font-size:11.5px;font-weight:700;color:${ya?'#22d39a':'var(--ink)'};cursor:pointer;display:block;">
+        ${ya?'✓':(x.multi?'📷+':'📷')} ${x.n}${(x.multi&&n>0)?` <span style="opacity:.85;">(${n})</span>`:''}
+        ${x.multi?'<div style="font-size:9.5px;font-weight:600;color:var(--muted);margin-top:2px;">toca para agregar más</div>':''}
+        <input type="file" accept="image/*" ${x.multi?'multiple':''} style="display:none;" onchange="subirRep('${id}','${x.k}',this)">
+      </label>`;}).join('')}</div>`;
+  det.innerHTML=`<div class="card">
+    <h2>${o.economico||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${[o.marca,o.modelo].filter(Boolean).join(' ')}</span></h2>
+    <div class="hint">${o.diagnosticos||''}</div>
+    ${bloque('Refacciones', EV_REP.slice(0,3))}
+    ${bloque('Fotos de la unidad lista', EV_REP.slice(3))}
+    <div class="msg" id="rep-msg" style="margin-top:12px;"></div>
+    <button class="btn btn-ghost" style="margin-top:10px;" onclick="cerrarReparacion()">Elegir otra unidad</button>
+  </div>`;
+  det.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function cerrarReparacion(){
+  repActiva=null;
+  document.getElementById('rep-detalle').classList.add('hide');
+  cargarReparaciones();
+}
+async function subirRep(id,tipo,input){
+  const files=Array.from(input.files||[]); if(!files.length) return;
+  const msg=document.getElementById('rep-msg');
+  msg.className='msg'; msg.textContent='Subiendo '+files.length+' archivo(s)...';
+  try{
+    for(const f of files){
+      const blob=await comprimir(f);
+      const path=`${id}/${tipo}_${Date.now()}_${Math.random().toString(36).slice(2,7)}.jpg`;
+      const { error:e1 }=await sb.storage.from('tm-evidencias').upload(path,blob,{contentType:'image/jpeg',upsert:true});
+      if(e1) throw e1;
+      const { data }=sb.storage.from('tm-evidencias').getPublicUrl(path);
+      const { error:e2 }=await sb.from('tm_evidencias').insert({servicio_id:id,tipo,url:data.publicUrl});
+      if(e2) throw e2;
+    }
+    msg.className='msg ok'; msg.textContent='✓ '+files.length+' foto(s) agregada(s)';
+    (repEvid[id]=repEvid[id]||new Set()).add(tipo);
+    const c=repCount[id]=repCount[id]||{}; c[tipo]=(c[tipo]||0)+files.length;
+    input.value='';
+    abrirReparacion(id);
+  }catch(e){ msg.className='msg err'; msg.textContent='No se pudo subir: '+(e.message||e); }
+}
+
+async function cargarDiagnosticos(){
+  const { data } = await sb.from('tm_diagnosticos').select('nombre').eq('activo',true).order('nombre');
+  const c=document.getElementById('diag-list'); c.innerHTML='';
+  (data||[]).forEach(d=>{
+    const el=document.createElement('div'); el.className='chip'; el.textContent=d.nombre;
+    el.onclick=()=>{ el.classList.toggle('on'); if(diagSel.has(d.nombre)) diagSel.delete(d.nombre); else diagSel.add(d.nombre); };
+    c.appendChild(el);
+  });
+  const inp=document.getElementById('f-filtro-diag');
+  if(inp){
+    const norm=x=>x.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+    inp.oninput=()=>{
+      const q=norm(inp.value.trim());
+      c.querySelectorAll('.chip').forEach(el=>{
+        if(el.id==='chip-otro'){ el.classList.remove('hide'); return; }
+        el.classList.toggle('hide', q.length>0 && !norm(el.textContent).includes(q));
+      });
+    };
+  }
+  const otro=document.createElement('div'); otro.className='chip'; otro.id='chip-otro'; otro.textContent='➕ Otro';
+  otro.onclick=()=>{
+    otro.classList.toggle('on');
+    otroOn=otro.classList.contains('on');
+    document.getElementById('otro-box').classList.toggle('hide',!otroOn);
+    if(!otroOn) document.getElementById('f-otro').value='';
+  };
+  c.appendChild(otro);
+}
+
+async function enviar(){
+  const msg=document.getElementById('msg'); msg.className='msg'; msg.textContent='';
+  const g=id=>document.getElementById(id).value.trim();
+  // El admin/gerente puede registrar sin la unidad presente (cotizaciones a distancia): nada obligatorio.
+  const libre = profile.rol==='admin' || profile.rol==='gerente';
+  const obligatorios = libre ? [] :
+    [['f-economico','Económico'],['f-marca','Marca'],['f-modelo','Modelo'],['f-anio','Año'],['f-placas','Placa'],['f-fecha','Fecha de ingreso']];
+  const faltanCampos=[];
+  obligatorios.forEach(([id,l])=>{ const el=document.getElementById(id); if(!el.value.trim()){ faltanCampos.push(l); el.classList.add('err'); } else el.classList.remove('err'); });
+  if(faltanCampos.length){ msg.className='msg err'; msg.textContent='Faltan datos: '+faltanCampos.join(', '); window.scrollTo(0,0); return; }
+  if(otroOn && !g('f-otro')){ msg.className='msg err'; msg.textContent='Escribe el diagnóstico en "Otro".'; document.getElementById('f-otro').classList.add('err'); return; }
+  if(!profile.plaza_id && !PLAZA_ELEGIDA){ msg.className='msg err'; msg.textContent='Selecciona la plaza donde se recibe la unidad.'; document.getElementById('plaza-sel-box').scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  if(!libre && !diagSel.size && !otroOn && !g('f-falla')){ msg.className='msg err'; msg.textContent='Selecciona al menos un diagnóstico o escribe un comentario.'; return; }
+  const faltanFotos = libre ? [] : TIPOS.filter(t=>!fotos[t.k]).map(t=>t.l);
+  if(faltanFotos.length){ msg.className='msg err'; msg.textContent='Faltan fotos: '+faltanFotos.join(', '); return; }
+
+  const b=document.getElementById('btn-enviar'); b.disabled=true; b.innerHTML='<span class="spin"></span>Registrando...';
+  try{
+    const vehiculo=[g('f-marca'),g('f-modelo'),g('f-anio')].filter(Boolean).join(' ');
+    const lista=Array.from(diagSel); if(otroOn && g('f-otro')) lista.push(g('f-otro'));
+    const diags=lista.join(' / ');
+    const { data:serv, error:e1 } = await sb.from('tm_servicios').insert({
+      plaza_id:profile.plaza_id||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.id)||null, plaza:profile.plaza||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.nombre)||null,
+      economico:g('f-economico'), marca:g('f-marca'), modelo:g('f-modelo'), anio:g('f-anio'),
+      placas:g('f-placas'), serie:g('f-serie'), vehiculo:vehiculo,
+      kilometraje:g('f-km'), odometro:g('f-km'),
+      diagnosticos:diags, falla:g('f-falla')||diags,
+      mecanico:profile.nombre, estatus:'Cotización',
+      fecha_recepcion:g('f-fecha'), creado_por:profile.id, nuevo_flujo:true
+    }).select().single();
+    if(e1) throw e1;
+
+    for(const t of TIPOS){
+      const path=`${serv.id}/${t.k}.jpg`;
+      const { error:eu } = await sb.storage.from('tm-evidencias').upload(path,fotos[t.k],{upsert:true,contentType:'image/jpeg'});
+      if(eu) throw eu;
+      const { data:{ publicUrl } } = sb.storage.from('tm-evidencias').getPublicUrl(path);
+      await sb.from('tm_evidencias').insert({ servicio_id:serv.id, tipo:t.k, url:publicUrl });
+    }
+    for(let i=0;i<extras.length;i++){
+      const path=`${serv.id}/extra_${i+1}.jpg`;
+      const { error:ee } = await sb.storage.from('tm-evidencias').upload(path,extras[i],{upsert:true,contentType:'image/jpeg'});
+      if(ee) throw ee;
+      const { data:{ publicUrl } } = sb.storage.from('tm-evidencias').getPublicUrl(path);
+      await sb.from('tm_evidencias').insert({ servicio_id:serv.id, tipo:'extra_'+(i+1), url:publicUrl });
+    }
+    const refsValidas=refsTmp.filter(r=>r.desc && r.desc.trim());
+    if(refsValidas.length){
+      await sb.from('tm_refacciones').insert(refsValidas.map(r=>({
+        servicio_id:serv.id, descripcion:r.desc.trim(), cantidad:parseInt(r.cant)||1, costo:0
+      })));
+    }
+    await sb.from('tm_historial').insert([{ servicio_id:serv.id, estatus:'Diagnóstico', usuario:profile.nombre },{ servicio_id:serv.id, estatus:'Cotización', usuario:profile.nombre }]);
+
+    document.getElementById('done-txt').textContent=`Unidad ${g('f-economico')} registrada en ${profile.plaza||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.nombre)||''}. Ya aparece en el panel.`;
+    document.getElementById('done').style.display='flex';
+  }catch(err){
+    msg.className='msg err'; msg.textContent='Error: '+(err.message||'no se pudo registrar');
+  }
+  b.disabled=false; b.textContent='📤 Registrar ingreso';
+}
+
+function nuevaOrden(){
+  ['f-economico','f-marca','f-modelo','f-anio','f-placas','f-serie','f-km','f-falla','f-otro'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-fecha').value=new Date().toISOString().slice(0,10);
+  fotos={}; extras=[]; refsTmp=[]; diagSel.clear(); otroOn=false;
+  const bd=document.getElementById('f-filtro-diag'); if(bd) bd.value='';
+  document.querySelectorAll('.chip.on').forEach(c=>c.classList.remove('on'));
+  document.getElementById('otro-box').classList.add('hide');
+  document.getElementById('f-otro').value='';
+  TIPOS.forEach(t=>{ const s=document.getElementById('slot-'+t.k); s.classList.remove('done'); const im=s.querySelector('img'); if(im) im.remove(); });
+  renderExtras(); renderRefs();
+  document.getElementById('done').style.display='none';
+  document.getElementById('msg').textContent='';
+  window.scrollTo(0,0);
+}
+async function logout(){ await sb.auth.signOut(); location.reload(); }
+(async()=>{ const { data:{ session } } = await sb.auth.getSession(); if(session) await cargarPerfil(session.user); })();
+</script>
+<!-- ===== CAMBIO DE CONTRASEÑA ===== -->
+<div id="pw-modal" style="display:none; position:fixed; inset:0; background:rgba(5,6,15,.78); z-index:200; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:linear-gradient(180deg,#20244a,#191c3c); border:1px solid rgba(255,255,255,.1); border-radius:18px; padding:28px; width:100%; max-width:390px; box-shadow:0 30px 80px rgba(0,0,0,.6);">
+    <h3 style="font-size:17px; font-weight:800; margin-bottom:6px;">🔑 Cambiar mi contraseña</h3>
+    <p style="font-size:12px; color:#8b93b8; line-height:1.5; margin-bottom:18px;">Elige una contraseña nueva. Mínimo 8 caracteres. Nadie más debe conocerla.</p>
+    <input type="password" id="pw-1" placeholder="Nueva contraseña" autocomplete="new-password"
+      style="width:100%; padding:11px 13px; margin-bottom:10px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#eef1fb; font-size:14px; font-family:inherit;">
+    <input type="password" id="pw-2" placeholder="Repite la contraseña" autocomplete="new-password"
+      style="width:100%; padding:11px 13px; margin-bottom:12px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#eef1fb; font-size:14px; font-family:inherit;">
+    <div id="pw-msg" style="font-size:12px; min-height:17px; margin-bottom:12px; line-height:1.4;"></div>
+    <div style="display:flex; gap:9px;">
+      <button onclick="cerrarPw()" style="flex:1; padding:11px; background:none; border:1px solid rgba(255,255,255,.14); color:#8b93b8; border-radius:10px; cursor:pointer; font-weight:700; font-size:13px; font-family:inherit;">Cancelar</button>
+      <button id="pw-btn" onclick="guardarPw()" style="flex:1.4; padding:11px; background:linear-gradient(135deg,#0e9f6e,#22d39a); border:none; color:#04331f; border-radius:10px; cursor:pointer; font-weight:800; font-size:13px; font-family:inherit;">Guardar</button>
+    </div>
+  </div>
+</div>
+<script>
+function abrirPw(){
+  document.getElementById('pw-1').value='';
+  document.getElementById('pw-2').value='';
+  document.getElementById('pw-msg').textContent='';
+  document.getElementById('pw-modal').style.display='flex';
+  setTimeout(()=>document.getElementById('pw-1').focus(),80);
+}
+function cerrarPw(){ document.getElementById('pw-modal').style.display='none'; }
+async function guardarPw(){
+  const a=document.getElementById('pw-1').value, b=document.getElementById('pw-2').value;
+  const msg=document.getElementById('pw-msg'), btn=document.getElementById('pw-btn');
+  msg.style.color='#ff8f9a';
+  if(a.length<8){ msg.textContent='La contraseña debe tener al menos 8 caracteres.'; return; }
+  if(a!==b){ msg.textContent='Las dos contraseñas no son iguales.'; return; }
+  btn.disabled=true; btn.textContent='Guardando...';
+  const {error}=await sb.auth.updateUser({password:a});
+  btn.disabled=false; btn.textContent='Guardar';
+  if(error){
+    msg.textContent = /weak|short|least/i.test(error.message)
+      ? 'Esa contraseña es muy débil. Usa letras, números y algún símbolo.'
+      : 'No se pudo cambiar: '+error.message;
+    return;
+  }
+  msg.style.color='#22d39a';
+  msg.textContent='✓ Contraseña actualizada. Úsala la próxima vez que entres.';
+  setTimeout(cerrarPw, 2200);
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && document.getElementById('pw-modal').style.display==='flex') cerrarPw();
+  if(e.key==='Enter' && document.getElementById('pw-modal').style.display==='flex') guardarPw();
+});
+</script>
+
+</body>
+</html>
