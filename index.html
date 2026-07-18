@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taller Manager — SITEL Automotriz</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0c1b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Taller Manager">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+*{ box-sizing:border-box; margin:0; padding:0; font-family:'Inter','Segoe UI',sans-serif; }
+body{ min-height:100vh; background:radial-gradient(1000px 500px at 80% -10%, #262a55 0%, transparent 55%), linear-gradient(160deg,#1b1e3d,#0d0f20); color:#eef1fb; display:flex; align-items:center; justify-content:center; padding:24px; -webkit-font-smoothing:antialiased; }
+.wrap{ width:100%; max-width:430px; text-align:center; }
+h1{ font-size:15px; letter-spacing:2.5px; font-weight:800; background:linear-gradient(90deg,#7ee8f2,#00d0e6); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.t{ font-size:30px; font-weight:900; letter-spacing:-.6px; margin:2px 0 4px; }
+.s{ color:#9aa3c7; font-size:13.5px; margin-bottom:32px; }
+a.card{ display:flex; align-items:center; gap:16px; text-decoration:none; color:#eef1fb; background:linear-gradient(180deg,#20244a,#191c3c); border:1px solid rgba(255,255,255,.09); border-radius:18px; padding:20px; margin-bottom:14px; transition:.18s; }
+a.card:hover{ transform:translateY(-3px); border-color:rgba(0,208,230,.4); box-shadow:0 16px 40px rgba(0,0,0,.4); }
+a.card.gold:hover{ border-color:rgba(245,184,0,.45); }
+.emoji{ font-size:32px; }
+.txt{ text-align:left; }
+.txt b{ font-size:16.5px; font-weight:800; display:block; }
+.txt span{ font-size:12.5px; color:#9aa3c7; }
+.foot{ margin-top:22px; font-size:11px; color:#69728c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img src="logo.png" alt="SITEL Taller Mecánico" style="width:146px;height:auto;margin:0 auto 14px;display:block;filter:drop-shadow(0 4px 16px rgba(0,0,0,.5));">
+  <h1>SITEL AUTOMOTRIZ</h1>
+  <div class="t">Taller Manager</div>
+  <div class="s">Selecciona cómo vas a entrar</div>
+
+  <a class="card" href="app_mecanico.html">
+    <span class="emoji">🔧</span>
+    <span class="txt"><b>Soy Mecánico</b><span>Registrar recepción de una unidad</span></span>
+  </a>
+
+  <a class="card" href="dashboard_supabase.html">
+    <span class="emoji">🖥️</span>
+    <span class="txt"><b>Panel de Control</b><span>Supervisor y administrador</span></span>
+  </a>
+
+  <a class="card gold" href="panel_contabilidad.html">
+    <span class="emoji">🧾</span>
+    <span class="txt"><b>Contabilidad</b><span>Facturación y cobranza</span></span>
+  </a>
+
+  <div class="foot">Sistema en la nube · Tiempo real · v4.0</div>
+</div>
+</body>
+</html>
