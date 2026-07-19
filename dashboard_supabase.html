@@ -99,6 +99,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
 .gitem .doc .e{ font-size:8px; font-weight:800; letter-spacing:1px; color:var(--cyan); }
 .gitem .dl{ position:absolute; top:5px; right:5px; z-index:3; width:22px; height:22px; border-radius:6px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; text-decoration:none; opacity:0; transition:.15s; }
 .gitem:hover .dl{ opacity:1; }
+.rep-ev{ position:absolute; top:5px; left:5px; z-index:3; width:22px; height:22px; border-radius:6px; background:rgba(59,130,246,.85); color:#fff; font-size:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0; transition:.15s; }
+.gitem:hover .rep-ev{ opacity:1; }
 .gitem .dl:hover{ background:var(--cyan); color:#04202a; }
 .gitem .tg{ position:absolute; bottom:0; width:100%; text-align:center; font-size:8px; color:#fff; background:rgba(0,208,230,.85); font-weight:700; padding:2px 0; }
 .gitem.entrega .tg{ background:rgba(34,211,154,.9); color:#04331f; }
@@ -291,7 +293,7 @@ const PIPELINE=[
  'Compra de Refacciones y Reparación','Reparado','Pendiente de OT','Auto Entregado',
  'Pendiente de Factura','Contabilidad Emitió Factura',
  'Se Envía Factura a Telmex','Factura Pagada'];
-const CORTO=['Diagnóstico','Cotización','Pend. Autoriz.','Autorizado','Compra y Rep.','Reparado','Pend. de OT','Entregado','Pend. Factura','Factura Emitida','Factura enviada TMX','Pagada'];
+const CORTO=['Diagnóstico','Cotización','Pend. Autoriz.','Autorización','Compra y Rep.','Reparado','Pend. de OT','Entregado','Pend. Factura','Factura Emitida','Factura enviada TMX','Pagada'];
 const ESPECIALES=['No Autorizado / Rechazado','Garantía'];
 // Candados: estatus destino -> evidencias requeridas
 // La evidencia de cada paso se sube ESTANDO en ese paso y habilita el siguiente.
@@ -315,7 +317,8 @@ const TIPO_REPARACION=['Local','Externo'];
 // Textos de los botones de avance
 const ETIQ_C={ot:'Número de OT', fecha_pago:'Fecha de pago', num_factura:'Número de factura', fecha_factura:'Fecha de la factura'};
 const TXT_BTN={
-  'Pendiente de Autorización':'Avanzar a Autorización',
+  'Pendiente de Autorización':'Avanzar a Pendiente de Autorización',
+  'Autorizado':'Avanzar a Autorización',
   'Auto Entregado':'Avanzar a entregar auto',
   'Se Envía Factura a Telmex':'Factura enviada',
   'Factura Pagada':'Cerrar: factura pagada'
@@ -342,7 +345,7 @@ const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  entrega_frontal:'unidad lista: frontal',entrega_lateralDer:'unidad lista: lateral der.',entrega_lateralIzq:'unidad lista: lateral izq.',
  entrega_trasera:'unidad lista: trasera',entrega_tablero:'unidad lista: tablero',entrega_motor:'unidad lista: motor',entrega_odometro:'unidad lista: odómetro'};
 // Campos requeridos por paso
-const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // la OT llega en el paso 7; la fecha de pago cierra en el 11
+const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // OT capturable desde paso 4; si ya está, no se vuelve a pedir
 const COLOR={'Diagnóstico':'#f5b800','Cotización':'#ff9800','Pendiente de Autorización':'#ff7a18','Autorizado':'#3b82f6',
  'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899',
  'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9',
@@ -645,11 +648,14 @@ function abrir(id){
 
   // Galería agrupada
   const ini=['frontal','lateralDer','lateralIzq','trasera','tablero','motor','odometro'];
-  const proc=['cotizacion','envio_cotizacion','autorizacion','ticket_compra','refacciones_compradas','correo_ot_cliente','formato_entrega_firmado','identificacion_receptor'];
+  const proc=['cotizacion','envio_cotizacion','autorizacion','ticket_compra','correo_ot_cliente','formato_entrega_firmado','identificacion_receptor'];
   const fact=['correo_recepcion_ot','factura_pdf','factura_xml','factura','acuse_recepcion_telmex','acuse_envio_factura','comprobante_pago'];
-  const ent=ENTREGA.map(k=>'entrega_'+k);
+  const ent=['refacciones_usadas','refacciones_compradas','refacciones_montadas'].concat(ENTREGA.map(k=>'entrega_'+k));
   const extras=Object.keys(evT).filter(k=>k.startsWith('extra_'));
   const piezas=Object.keys(evT).filter(k=>k.startsWith('pieza_'));
+  // En el paso Reparado el super puede reemplazar las fotos que subió el mecánico
+  const puedeReemplazar = editable && (s.estatus==='Reparado');
+  const REEMPLAZABLES = ['refacciones_usadas','refacciones_compradas','refacciones_montadas'].concat(ENTREGA.map(k=>'entrega_'+k));
   const gitem=(k,cls)=>{
     const u=evT[k]; if(!u) return '';
     const nom=(GNOM[k]||k).replace('entrega: ','').replace('unidad lista: ','');
@@ -657,7 +663,9 @@ function abrir(id){
     const vista = esFoto(u)
       ? `<img src="${u}" onclick="lb('${u}')">`
       : `<a class="doc" href="${u}" target="_blank" title="Abrir ${nom}"><span class="i">${iconoDe(u)}</span><span class="e">${ext.toUpperCase()}</span></a>`;
-    return `<div class="gitem ${cls||''}">${vista}<a class="dl" href="${u}" download="${k}.${ext}" target="_blank" onclick="event.stopPropagation()" title="Descargar">⬇</a><span class="tg">${nom}</span></div>`;
+    const rep = (puedeReemplazar && REEMPLAZABLES.includes(k))
+      ? `<label class="rep-ev" title="Reemplazar esta foto">✎<input type="file" accept="image/*" style="display:none;" onchange="reemplazarEv('${id}','${k}',this)"></label>` : '';
+    return `<div class="gitem ${cls||''}">${vista}<a class="dl" href="${u}" download="${k}.${ext}" target="_blank" onclick="event.stopPropagation()" title="Descargar">⬇</a>${rep}<span class="tg">${nom}</span></div>`;
   };
   const grupo=(titulo,arr,cls)=>{ const g=arr.map(k=>gitem(k,cls)).filter(Boolean).join(''); return g?`<div class="sect-h">${titulo}</div><div class="gal">${g}</div>`:''; };
 
@@ -667,10 +675,10 @@ function abrir(id){
   let partsRows=lines.map(r=>`<tr>
     <td>${r.descripcion||''}</td>
     <td style="text-align:center;">${r.cantidad}</td>
-    <td>${editable?`<input list="prov-list" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:150px;font-size:11.5px;" onchange="setProveedorRef('${r.id}',this.value,this)">`:(r.proveedor||'—')}</td>
-    <td style="text-align:right;">${editable?`<input type="number" step="0.01" value="${r.costo||0}" style="width:92px;text-align:right;" onchange="setCosto('${r.id}',this.value,this)">`:fmt(r.costo)}</td>
+    <td>${editable?`<input list="prov-list" id="prov-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:150px;font-size:11.5px;">`:(r.proveedor||'—')}</td>
+    <td style="text-align:right;">${editable?`<input type="number" step="0.01" id="costo-${r.id}" value="${r.costo||0}" style="width:92px;text-align:right;">`:fmt(r.costo)}</td>
     <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${fmt((r.cantidad||0)*(r.precio||0))}</td>
-    ${editable?`<td style="text-align:center;"><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:''}</tr>`).join('')
+    ${editable?`<td style="text-align:center;white-space:nowrap;"><button class="btn-sm" id="gr-${r.id}" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;margin-right:5px;" onclick="guardarRef('${r.id}')">Guardar</button><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:''}</tr>`).join('')
     ||`<tr><td colspan="6" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
   const datalistProv = `<datalist id="prov-list">${provOpts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
 
@@ -740,6 +748,8 @@ function abrir(id){
       : `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;display:inline-block;margin:0;">🧾 El siguiente paso lo realiza <b>Contabilidad</b>.</div>`):''}
     ${(idx>0 && puedeAvanzarA(PIPELINE[idx-1]) && (s.estatus!=='Factura Pagada'||esAdmin()))?`<button class="btn-back" onclick="retroceder('${id}')" title="Regresar al paso anterior">← Regresar a: ${CORTO[idx-1]}</button>`:''}
     ${s.estatus==='Autorizado'?`<button class="btn-rej" onclick="marcar('${id}','No Autorizado / Rechazado')">✕ No autorizado / Rechazado</button>`:''}
+    ${((s.estatus==='Autorizado'||s.estatus==='Compra de Refacciones y Reparación'||s.estatus==='Reparado')&&editable&&!s.ot)?`<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:11px 14px;margin:8px 0;"><div style="font-size:11px;font-weight:800;color:#93b4ff;margin-bottom:6px;">NÚMERO DE OT (puedes capturarla desde aquí)</div><div style="display:flex;gap:8px;"><input type="text" id="ot-early-${id}" placeholder="Número de OT" value="${(s.ot||'').replace(/"/g,'&quot;')}" style="flex:1;margin:0;"><button class="btn-sm" onclick="guardarOT('${id}')">Guardar OT</button></div></div>`:''}
+    ${(s.ot&&(s.estatus==='Autorizado'||s.estatus==='Compra de Refacciones y Reparación'||s.estatus==='Reparado'||s.estatus==='Pendiente de OT'))?`<div style="font-size:12px;color:#22d39a;margin:6px 0;">✓ OT capturada: <b>${s.ot}</b></div>`:''}
     ${s.estatus==='Cotización'?`<button class="btn-gar" onclick="marcarGarantia('${id}')">🛡️ Marcar como Garantía</button>`:''}` : '';
 
   const extrasEditables = editable && !especial ? `
@@ -849,6 +859,16 @@ async function subirFoto(id,tipo,file){
   const ya=evis.find(e=>e.servicio_id===id&&e.tipo===tipo);
   if(ya) await sb.from('tm_evidencias').update({url:publicUrl}).eq('id',ya.id);
   else await sb.from('tm_evidencias').insert({servicio_id:id,tipo,url:publicUrl});
+}
+async function reemplazarEv(id,tipo,input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  if(!confirm('¿Reemplazar esta foto por la nueva?')){ input.value=''; return; }
+  try{
+    // borrar las anteriores de ese tipo (incluye numeradas) y subir la nueva
+    await sb.from('tm_evidencias').delete().eq('servicio_id',id).eq('tipo',tipo);
+    await subirFoto(id,tipo,f);
+    await cargarTodo(); abrir(id);
+  }catch(e){ alert('No se pudo reemplazar: '+(e.message||e)); }
 }
 async function subirGate(id,tipo,input){
   const files=[...input.files]; if(!files.length) return;
@@ -1203,11 +1223,31 @@ async function marcar(id,estatus){
   await sb.from('tm_historial').insert({servicio_id:id,estatus,usuario:profile.nombre});
   await cargarTodo();
 }
+async function guardarOT(id){
+  const inp=document.getElementById('ot-early-'+id); if(!inp) return;
+  const v=inp.value.trim(); if(!v){ alert('Escribe el número de OT.'); return; }
+  const {error}=await sb.from('tm_servicios').update({ot:v}).eq('id',id);
+  if(error){ alert('No se guardó: '+error.message); return; }
+  await cargarTodo(); abrir(id);
+}
 async function guardarCampos(id,campos){
   const upd={}; let falta=false;
   campos.forEach(c=>{ const v=document.getElementById('cmp-'+c).value.trim(); if(!v) falta=true; upd[c]=v; });
   if(falta){ alert('Llena todos los campos.'); return; }
   await sb.from('tm_servicios').update(upd).eq('id',id); await cargarTodo();
+}
+async function guardarRef(refId){
+  const pi=document.getElementById('prov-'+refId), ci=document.getElementById('costo-'+refId);
+  const prov=pi?pi.value.trim():'', costo=ci?(parseFloat(ci.value)||0):0;
+  const btn=document.getElementById('gr-'+refId);
+  if(btn){ btn.disabled=true; btn.textContent='...'; }
+  const {error}=await sb.from('tm_refacciones').update({proveedor:prov||null,costo:costo}).eq('id',refId);
+  if(error){ alert('No se guardó: '+error.message); if(btn){btn.disabled=false;btn.textContent='Guardar';} return; }
+  const r=refs.find(x=>x.id===refId);
+  if(r){ r.proveedor=prov; r.costo=costo; r.precio=Math.round(costo*CFG.markup_piezas*100)/100; }
+  refrescarTotales(activeId);
+  if(btn){ btn.disabled=false; btn.textContent='✓ Guardado'; btn.style.background='#12a878';
+    setTimeout(()=>{ btn.textContent='Guardar'; btn.style.background='linear-gradient(135deg,#22d39a,#12a878)'; },1400); }
 }
 async function setCosto(refId,val,el){
   const v=parseFloat(val)||0;

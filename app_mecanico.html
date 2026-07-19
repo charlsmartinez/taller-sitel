@@ -334,7 +334,7 @@ function irA(v){
 // ── Paso 6: evidencias de reparación ──
 const EV_REP=[
   {k:'refacciones_usadas',  n:'Refacciones que se quitaron', multi:true},
-  {k:'refacciones_compradas',n:'Refacciones cambiadas',      multi:true},
+  {k:'refacciones_compradas',n:'Refacciones nuevas',          multi:true},
   {k:'refacciones_montadas', n:'Refacciones montadas',       multi:true},
   {k:'entrega_frontal',    n:'Frontal'},
   {k:'entrega_lateralDer', n:'Lateral derecho'},
@@ -401,9 +401,23 @@ function abrirReparacion(id){
     ${bloque('Refacciones', EV_REP.slice(0,3))}
     ${bloque('Fotos de la unidad lista', EV_REP.slice(3))}
     <div class="msg" id="rep-msg" style="margin-top:12px;"></div>
-    <button class="btn btn-ghost" style="margin-top:10px;" onclick="cerrarReparacion()">Elegir otra unidad</button>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <button class="btn btn-main" style="flex:1;min-width:180px;margin:0;" onclick="terminarReparacion('${o.id}')">✓ Terminar registro</button>
+      <button class="btn btn-ghost" style="margin:0;" onclick="cerrarReparacion()">Elegir otra unidad</button>
+    </div>
   </div>`;
   det.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function terminarReparacion(id){
+  const t=repEvid[id]||new Set();
+  const faltan=EV_REP.filter(x=>!t.has(x.k));
+  if(faltan.length){
+    if(!confirm('Todavía faltan evidencias:\n\n· '+faltan.map(x=>x.n).join('\n· ')+'\n\n¿Terminar de todas formas? El supervisor podrá completarlas.')) return;
+  }
+  alert('✓ Evidencias registradas para esta unidad.\n\nEl supervisor ya puede avanzar la orden.');
+  repActiva=null;
+  document.getElementById('rep-detalle').classList.add('hide');
+  irA('menu');
 }
 function cerrarReparacion(){
   repActiva=null;
@@ -515,7 +529,7 @@ async function enviar(){
     }
     await sb.from('tm_historial').insert([{ servicio_id:serv.id, estatus:'Diagnóstico', usuario:profile.nombre },{ servicio_id:serv.id, estatus:'Cotización', usuario:profile.nombre }]);
 
-    document.getElementById('done-txt').textContent=`Unidad ${g('f-economico')} registrada en ${profile.plaza||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.nombre)||''}. Ya aparece en el panel.`;
+    document.getElementById('done-txt').innerHTML=`Unidad <b>${g('f-economico')}</b> registrada en ${profile.plaza||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.nombre)||''}.<br>Cotización generada: <b style="color:var(--cyan);">${serv.cot||'—'}</b><br>Ya aparece en el panel.`;
     document.getElementById('done').style.display='flex';
   }catch(err){
     msg.className='msg err'; msg.textContent='Error: '+(err.message||'no se pudo registrar');
