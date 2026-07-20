@@ -1239,6 +1239,7 @@ async function guardarCampos(id,campos){
 async function guardarRef(refId){
   const pi=document.getElementById('prov-'+refId), ci=document.getElementById('costo-'+refId);
   const prov=pi?pi.value.trim():'', costo=ci?(parseFloat(ci.value)||0):0;
+  if(costo<0){ alert('El costo no puede ser negativo. Revisa la cantidad capturada.'); if(ci) ci.focus(); return; }
   const btn=document.getElementById('gr-'+refId);
   if(btn){ btn.disabled=true; btn.textContent='...'; }
   const {error}=await sb.from('tm_refacciones').update({proveedor:prov||null,costo:costo}).eq('id',refId);
@@ -1284,7 +1285,9 @@ function refrescarTotales(id){
   }
 }
 async function setMO(id,val){
-  await sb.from('tm_servicios').update({mano_obra:parseFloat(val)||0}).eq('id',id); await cargarTodo();
+  const mo=parseFloat(val)||0;
+  if(mo<0){ alert('La mano de obra no puede ser negativa.'); return; }
+  await sb.from('tm_servicios').update({mano_obra:mo}).eq('id',id); await cargarTodo();
 }
 async function addRef(id){
   const d=document.getElementById('nr-desc').value.trim();
