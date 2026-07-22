@@ -272,20 +272,19 @@ async function fetchAll(build){
   return {data:out};
 }
 async function cargarTodo(){
-  const [s,r,e,h]=await Promise.all([
-    fetchAll(()=>sb.from('tm_servicios').select('*').in('estatus',VISIBLES).order('updated_at',{ascending:false})),
+  const [s,r,e]=await Promise.all([
+    fetchAll(()=>sb.from('tm_servicios').select('*').eq('nuevo_flujo',true).in('estatus',VISIBLES).order('updated_at',{ascending:false})),
     fetchAll(()=>sb.from('tm_refacciones').select('*')),
-    fetchAll(()=>sb.from('tm_evidencias').select('*')),
-    fetchAll(()=>sb.from('tm_historial').select('*').order('fecha',{ascending:true}))
+    fetchAll(()=>sb.from('tm_evidencias').select('*'))
   ]);
-  servicios=s.data||[]; refs=r.data||[]; evis=e.data||[]; hist=h.data||[];
+  servicios=s.data||[]; refs=r.data||[]; evis=e.data||[]; hist=[];
   render(); if(activeId) abrir(activeId);
 }
 function suscribir(){
-  sb.channel('tm-conta')
+  sb.channel('tm-compras')
    .on('postgres_changes',{event:'*',schema:'public',table:'tm_servicios'},cargarTodo)
-   .on('postgres_changes',{event:'*',schema:'public',table:'tm_evidencias'},cargarTodo)
-   .on('postgres_changes',{event:'*',schema:'public',table:'tm_historial'},cargarTodo).subscribe();
+   .on('postgres_changes',{event:'*',schema:'public',table:'tm_refacciones'},cargarTodo)
+   .on('postgres_changes',{event:'*',schema:'public',table:'tm_evidencias'},cargarTodo).subscribe();
 }
 const refsDe=id=>refs.filter(r=>r.servicio_id===id);
 const extDe=u=>{ const m=(u||'').split('?')[0].match(/\.([a-z0-9]{2,4})$/i); return m?m[1].toLowerCase():''; };
