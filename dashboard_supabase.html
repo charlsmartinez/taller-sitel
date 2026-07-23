@@ -323,6 +323,9 @@ const TXT_BTN={
   'Se Envía Factura a Telmex':'Factura enviada',
   'Factura Pagada':'Cerrar: factura pagada'
 };
+// Nombre amigable del paso para los mensajes en pantalla
+const NOM_PASO={ 'Autorizado':'Autorización', 'Reparado':'Reparación' };
+const nomPaso=e=>NOM_PASO[e]||e;
 const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  envio_cotizacion:'comprobante de envío de la cotización (Telmex/cliente)',
  autorizacion:'foto del correo de autorización',
@@ -756,16 +759,16 @@ function abrir(id){
   const gateBox = especial
     ? `<div class="gate" style="background:rgba(255,90,106,.1);border-color:rgba(255,90,106,.3);color:#ff8f9a;">Orden en <b>${s.estatus}</b>.</div>`
     : (!next ? `<div class="gate ok">✓ Proceso concluido.</div>`
-    : !puedeAvanzarA(next) ? `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;">Siguiente paso: <b>${next}</b> — lo realiza Contabilidad.</div>`
+    : !puedeAvanzarA(next) ? `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;">Siguiente paso: <b>${nomPaso(next)}</b> — lo realiza Contabilidad.</div>`
     : ((faltanEv.length||faltanCampos.length||pendientes.length)
-        ? `<div class="gate">Estás en <b>${s.estatus}</b>. Para cerrar este paso y pasar a <b>${next}</b> falta: ${[...faltanCampos.map(c=>c.toUpperCase()),...faltanEv.map(g=>GNOM[g]||g),...pendientes].join(' · ')}.</div>`
+        ? `<div class="gate">Estás en <b>${nomPaso(s.estatus)}</b>. Para cerrar este paso y pasar a <b>${nomPaso(next)}</b> falta: ${[...faltanCampos.map(c=>c.toUpperCase()),...faltanEv.map(g=>GNOM[g]||g),...pendientes].join(' · ')}.</div>`
         + (editable?`<div class="upgrid">${faltanEv.map(g=>`<label class="up up-sm"><span>${MULTI.includes(g)?'📷+':'📷'} ${GNOM[g]||g}</span><input type="file" accept="image/*,application/pdf,.xml" ${MULTI.includes(g)?'multiple':''} onchange="subirGate('${id}','${g}',this)"></label>`).join('')}</div>`:'')
         + (editable&&faltanCampos.length?`<div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;align-items:flex-end;">${faltanCampos.map(c=>
             c.startsWith('fecha')
               ? `<div><label style="display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">${ETIQ_C[c]||c}</label><input type="date" id="cmp-${c}" value="${new Date().toISOString().slice(0,10)}" style="margin-bottom:0;color-scheme:dark;"></div>`
               : `<div><label style="display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">${ETIQ_C[c]||c}</label><input type="text" id="cmp-${c}" placeholder="${ETIQ_C[c]||c}" style="margin-bottom:0;"></div>`
           ).join('')}<button class="btn-sm" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`:'')
-        : `<div class="gate ok">✓ Listo para avanzar a <b>${next}</b>.</div>`));
+        : `<div class="gate ok">✓ Listo para avanzar a <b>${nomPaso(next)}</b>.</div>`));
 
   const puedeMover = next ? puedeAvanzarA(next) : false;
   const botonesEspecial = (especial&&editable) ? `
@@ -1238,7 +1241,7 @@ async function retroceder(id){
   const anterior=PIPELINE[i-1];
   if(!puedeAvanzarA(anterior)){ alert('El paso "'+anterior+'" no te corresponde.'); return; }
   if(s.estatus==='Factura Pagada' && !esAdmin()){ alert('Esta orden ya está pagada y cerrada.\n\nSolo Contabilidad o Gerencia pueden reabrirla.'); return; }
-  if(!confirm(`¿Regresar esta orden de "${s.estatus}" a "${anterior}"?\n\nQuedará registrado en el historial. Las evidencias ya subidas se conservan; puedes reemplazarlas.`)) return;
+  if(!confirm(`¿Regresar esta orden de "${nomPaso(s.estatus)}" a "${nomPaso(anterior)}"?\n\nQuedará registrado en el historial. Las evidencias ya subidas se conservan; puedes reemplazarlas.`)) return;
   const {error}=await sb.from('tm_servicios').update({estatus:anterior}).eq('id',id);
   if(error){ alert('No se pudo: '+error.message); return; }
   await sb.from('tm_historial').insert({servicio_id:id,estatus:anterior+' (regresado desde '+s.estatus+')',usuario:profile.nombre});
