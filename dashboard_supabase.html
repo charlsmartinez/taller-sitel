@@ -359,7 +359,7 @@ const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // OT c
 const COLOR={'Diagnóstico':'#f5b800','Cotización':'#ff9800','Autorizado':'#3b82f6',
  'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899',
  'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9',
- 'Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#0e9f6e','No Autorizado / Rechazado':'#ff5a6a','Garantía':'#a97bff'};
+ 'Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37','No Autorizado / Rechazado':'#ff5a6a','Garantía':'#a97bff'};
 const ENTREGA=['frontal','lateralDer','lateralIzq','trasera','tablero','motor','odometro'];
 const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const norm=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -829,7 +829,9 @@ function abrir(id){
     : (!next ? `<div class="gate ok">✓ Proceso concluido.</div>`
     : !puedeAvanzarA(next) ? `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;">Siguiente paso: <b>${nomPaso(next)}</b> — lo realiza Contabilidad.</div>`
     : ((faltanEv.length||faltanCampos.length||pendientes.length)
-        ? `<div class="gate">Estás en <b>${nomPaso(s.estatus)}</b>. Para cerrar este paso y pasar a <b>${nomPaso(next)}</b> falta: ${[...faltanCampos.map(c=>c.toUpperCase()),...faltanEv.map(g=>GNOM[g]||g),...pendientes].join(' · ')}.</div>`
+        ? (s.estatus==='Reparado'
+            ? `<div class="gate">Estás en <b>${nomPaso(s.estatus)}</b>. Completa lo siguiente para pasar a <b>${nomPaso(next)}</b>:</div>`
+            : `<div class="gate">Estás en <b>${nomPaso(s.estatus)}</b>. Para cerrar este paso y pasar a <b>${nomPaso(next)}</b> falta: ${[...faltanCampos.map(c=>c.toUpperCase()),...faltanEv.map(g=>GNOM[g]||g),...pendientes].join(' · ')}.</div>`)
         + (editable?`<div class="upgrid">${gate.map(g=>{
             const listo=!!evT[g];
             const okSt='border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
