@@ -202,7 +202,7 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
           <option value="pend">⏳ Pendientes de archivos</option>
           <option value="ok">✅ Archivos completos</option>
         </select>
-        <input type="text" id="f-buscar" placeholder="🔎 Buscar económico, OT, COT, factura..." oninput="render()">
+        <input type="text" id="f-buscar" placeholder="🔎 Buscar por económico, OT, COT o nombre de pieza (para garantías)..." oninput="render()">
         <button onclick="exportarExcel()" style="margin-bottom:0;background:linear-gradient(135deg,#f0870a,#f5b800);color:#2a1c00;border:none;border-radius:10px;font-weight:800;cursor:pointer;padding:9px 16px;">📊 Exportar Excel</button>
       </div>
       <div id="sel-resumen" class="selbar"></div>
@@ -378,7 +378,8 @@ function render(){
   const rows=plazaSet.filter(s=>{
     const mE=fe==='Todos'||s.estatus===fe;
     const mC=fc==='Todos'||estadoCarga(s.id)===fc;
-    const blob=[s.economico,s.ot,s.cot,s.num_factura,s.serie,s.placas,s.vehiculo].join(' ').toLowerCase();
+    const piezas=refsDe(s.id).map(r=>r.descripcion||'').join(' ');
+    const blob=[s.economico,s.ot,s.cot,s.num_factura,s.serie,s.placas,s.vehiculo,piezas].join(' ').toLowerCase();
     return mE&&mC&&(!fb||blob.includes(fb));
   }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
 
@@ -443,10 +444,27 @@ function abrir(id){
 
   const CHIP_OK='<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>';
 
+  // Bloque de un archivo: si ya está, se puede abrir, descargar o reemplazar
+  const bloqueArchivo=(sid, r, tipo, etiqueta, url)=>{
+    if(!url){
+      return `<label class="up up-sm" style="flex:1;min-width:170px;">📎 Subir ${etiqueta}<input type="file" style="display:none;" onchange="subirFactRef('${sid}','${r.id}','${tipo}',this)"></label>`;
+    }
+    const nombre=(r.descripcion||'pieza').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'').trim().replace(/\s+/g,'_');
+    return `<div style="flex:1;min-width:170px;border:1px solid rgba(34,211,154,.45);background:rgba(34,211,154,.09);border-radius:10px;padding:9px 11px;">
+      <div style="font-size:10.5px;font-weight:800;color:#3fe0ad;margin-bottom:7px;">✓ ${etiqueta.toUpperCase()} GUARDADO</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a href="${url}" target="_blank" rel="noopener" class="btn-sm" style="text-decoration:none;padding:5px 10px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">👁️ Ver</a>
+        <a href="${url}" download="${nombre}_${tipo}" class="btn-sm" style="text-decoration:none;padding:5px 10px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">⬇️ Descargar</a>
+        <label class="btn-sm" style="padding:5px 10px;font-size:11px;cursor:pointer;background:rgba(255,255,255,.07);color:var(--muted);border:1px solid var(--line);border-radius:7px;margin:0;">↻ Reemplazar<input type="file" style="display:none;" onchange="subirFactRef('${sid}','${r.id}','${tipo}',this)"></label>
+      </div>
+    </div>`;
+  };
+
   const filaRef=(r)=>{
     const pdfKey='factura_refaccion_pdf_'+r.id, xmlKey='factura_refaccion_xml_'+r.id;
-    const tienePDF=evisDe(id).some(e=>e.tipo===pdfKey);
-    const tieneXML=evisDe(id).some(e=>e.tipo===xmlKey);
+    const evPDF=evisDe(id).find(e=>e.tipo===pdfKey), evXML=evisDe(id).find(e=>e.tipo===xmlKey);
+    const tienePDF=!!evPDF, tieneXML=!!evXML;
+    const urlPDF=evPDF?evPDF.url:'', urlXML=evXML?evXML.url:'';
     const guardado = r.costo_final!=null;
     const cf = guardado ? r.costo_final : '';
     const okStyle='border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
@@ -464,8 +482,8 @@ function abrir(id){
         ${guardado?CHIP_OK:''}
       </div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;">
-        <label class="up up-sm" style="flex:1;min-width:160px;${tienePDF?okStyle:''}">${tienePDF?'✓ Archivo guardado (factura)':'📎 Subir factura'}<input type="file" style="display:none;" onchange="subirFactRef('${id}','${r.id}','pdf',this)"></label>
-        <label class="up up-sm" style="flex:1;min-width:160px;${tieneXML?okStyle:''}">${tieneXML?'✓ Archivo guardado (XML)':'📎 Subir XML / comprobante'}<input type="file" style="display:none;" onchange="subirFactRef('${id}','${r.id}','xml',this)"></label>
+        ${bloqueArchivo(id, r, 'pdf', 'factura', urlPDF)}
+        ${bloqueArchivo(id, r, 'xml', 'XML / comprobante', urlXML)}
       </div>
     </div>`;
   };
@@ -499,6 +517,32 @@ function abrir(id){
       </div>`
     : '';
 
+  // Todos los archivos guardados de esta orden, juntos para consulta rápida (garantías)
+  const archivos=[];
+  misRefs.forEach(r=>{
+    [['pdf','Factura'],['xml','XML / comprobante']].forEach(([t,et])=>{
+      const ev=evisDe(id).find(e=>e.tipo==='factura_refaccion_'+t+'_'+r.id);
+      if(ev) archivos.push({pieza:r.descripcion||'Pieza', etiqueta:et, url:ev.url, prov:r.proveedor||'', costo:(r.costo_final!=null?r.costo_final:r.costo)});
+    });
+  });
+  const archivosHtml = archivos.length
+    ? `<div class="sect-h">📁 Archivos guardados de esta orden</div>
+       <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Guárdalos a la mano: si una pieza cae en garantía, aquí sale su factura para el cambio o la reposición.</div>
+       <div style="border:1px solid var(--line);border-radius:11px;overflow:hidden;">
+       ${archivos.map((a,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;flex-wrap:wrap;${i%2?'background:rgba(255,255,255,.02);':''}">
+          <div style="min-width:180px;">
+            <div style="font-weight:700;font-size:13px;color:var(--ink);">${a.pieza}</div>
+            <div style="font-size:11px;color:var(--muted);">${a.etiqueta}${a.prov?' · '+a.prov:''}${a.costo!=null?' · '+fmt(a.costo):''}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <a href="${a.url}" target="_blank" rel="noopener" style="text-decoration:none;padding:5px 11px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">👁️ Ver</a>
+            <a href="${a.url}" download style="text-decoration:none;padding:5px 11px;font-size:11px;background:rgba(34,211,154,.12);color:#3fe0ad;border:1px solid rgba(34,211,154,.4);border-radius:7px;">⬇️ Descargar</a>
+          </div>
+        </div>`).join('')}
+       </div>`
+    : `<div class="sect-h">📁 Archivos guardados de esta orden</div>
+       <div style="font-size:12px;color:var(--muted);padding:12px 14px;border:1px dashed var(--line);border-radius:10px;">Todavía no hay archivos subidos para esta orden.</div>`;
+
   const totalCotizado = misRefs.reduce((a,r)=>a+(r.costo||0)*(r.cantidad||1),0);
   const totalReal = misRefs.reduce((a,r)=>a+((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1),0);
 
@@ -515,6 +559,7 @@ function abrir(id){
     <div class="sect-h">Refacciones — costo real y archivos</div>
     ${refsHtml}
     ${botonAvance}
+    ${archivosHtml}
     <div class="money" style="grid-template-columns:1fr 1fr;">
       <div class="mbox"><div class="ml">Costo cotizado</div><div class="mv">${fmt(totalCotizado)}</div></div>
       <div class="mbox tot"><div class="ml">Costo real pagado</div><div class="mv">${fmt(totalReal)}</div></div>
@@ -584,7 +629,7 @@ function exportarExcel(){
   const rows=servicios.filter(s=>{
     const mP=fp==='Todos'||norm(s.plaza)===norm(fp);
     const mE=fe==='Todos'||s.estatus===fe;
-    const blob=[s.economico,s.ot,s.cot,s.placas].join(' ').toLowerCase();
+    const blob=[s.economico,s.ot,s.cot,s.placas,refsDe(s.id).map(r=>r.descripcion||'').join(' ')].join(' ').toLowerCase();
     return mP&&mE&&(!fb||blob.includes(fb));
   }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
   if(!rows.length){ alert('No hay registros que exportar.'); return; }
