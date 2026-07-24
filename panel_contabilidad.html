@@ -228,10 +228,10 @@ const FLUJO=VISIBLES;                                   // orden real de los pas
 const siguiente=(est)=>{ const i=FLUJO.indexOf(est); return (i>=0&&i<FLUJO.length-1)?FLUJO[i+1]:null; };
 const contaEjecuta=(dest)=>CONTA.includes(dest);        // 10, 11 y 13 son suyos; el 12 es del generalista
 const NUM={'Pendiente de Factura':9,'Contabilidad Emitió Factura':10,'Se Envía Factura a Telmex':11,'Factura Pagada':12};
-const CORTO={'Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada TMX','Factura Pagada':'Pagada'};
+const CORTO={'Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada a TMX','Factura Pagada':'Factura pagada'};
 const COLOR={'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#0e9f6e'};
 // Campos requeridos para avanzar
-const CAMPOS={'Contabilidad Emitió Factura':['num_factura','fecha_factura'],'Factura Pagada':['fecha_pago','importe_pagado']};  // número y fecha al emitir; fecha de pago al cerrar
+const CAMPOS={'Contabilidad Emitió Factura':['num_factura','fecha_factura'],'Factura Pagada':['fecha_pago']};  // número y fecha al emitir; fecha de pago al cerrar
 const ETIQ={num_factura:'Número de factura',fecha_factura:'Fecha de factura',fecha_pago:'Fecha de pago',importe_pagado:'Importe pagado en la factura'};
 // La evidencia se sube estando en el paso y habilita el siguiente.
 const GATES={
@@ -480,6 +480,28 @@ function abrir(id){
     <td style="text-align:right;color:var(--gold);font-weight:700;">${r.es_adicional?'—':fmt(pcli)}</td></tr>`;}).join('')
     ||'<tr><td colspan="5" style="color:#8b93b8;">Sin refacciones registradas.</td></tr>';
 
+  // Importe pagado: visible, corregible y comparado contra lo cotizado a Telmex
+  let importeBox='';
+  if(s.estatus==='Se Envía Factura a Telmex' || s.estatus==='Factura Pagada'){
+    const cap = s.importe_pagado!=null ? Number(s.importe_pagado) : null;
+    const dif = cap!=null ? Math.round((cap - t.total)*100)/100 : null;
+    const cuadra = dif!=null && Math.abs(dif) < 0.01;
+    importeBox = `<div style="margin:14px 0;padding:14px 16px;border-radius:12px;background:${cap==null?'rgba(255,255,255,.03)':(cuadra?'rgba(34,211,154,.07)':'rgba(245,184,0,.09)')};border:1px solid ${cap==null?'var(--line)':(cuadra?'rgba(34,211,154,.35)':'rgba(245,184,0,.4)')};">
+      <div style="font-size:11px;font-weight:900;letter-spacing:.5px;color:${cap==null?'var(--muted)':(cuadra?'#3fe0ad':'#ffd75e')};margin-bottom:9px;">IMPORTE PAGADO EN LA FACTURA</div>
+      <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;">
+        <input type="number" step="0.01" min="0" id="imp-${id}" value="${cap!=null?cap:''}" placeholder="¿Cuánto pagaron?" style="flex:1;min-width:170px;margin:0;" oninput="reactivar('btn-imp-${id}')">
+        <button class="btn-sm" id="btn-imp-${id}" style="background:${cap!=null?'#12a878':'linear-gradient(135deg,#22d39a,#12a878)'};color:#04120c;border:0;font-weight:800;" onclick="guardarImporte('${id}')">${cap!=null?'✓ Guardado':'Guardar importe'}</button>
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:11px;font-size:12.5px;">
+        <div><span style="color:var(--muted);">Cotizado a Telmex:</span> <b style="color:var(--ink);">${fmt(t.total)}</b></div>
+        ${cap!=null?`<div><span style="color:var(--muted);">Pagado:</span> <b style="color:${cuadra?'#3fe0ad':'#ffd75e'};">${fmt(cap)}</b></div>`:''}
+        ${cap!=null&&!cuadra?`<div><span style="color:var(--muted);">Diferencia:</span> <b style="color:#ffd75e;">${dif>0?'+':''}${fmt(dif)}</b></div>`:''}
+      </div>
+      ${cap!=null&&!cuadra?`<div style="margin-top:10px;padding:9px 12px;border-radius:9px;background:rgba(245,184,0,.12);border-left:3px solid #f5b800;font-size:12px;color:#ffe9a8;">⚠️ El importe pagado <b>no coincide</b> con lo que se le cotizó a Telmex. Verifica antes de cerrar la orden.</div>`:''}
+      ${cap==null?`<div style="font-size:11px;color:var(--muted);margin-top:8px;">Captura el importe que realmente pagó el cliente. Lo puedes corregir antes de cerrar.</div>`:''}
+    </div>`;
+  }
+
   let accion='';
   // El paso 11 lo mueve el generalista, PERO la factura (PDF y XML) la sube contabilidad
   // estando en el paso 10. Por eso aquí siguen apareciendo sus botones de carga.
@@ -530,6 +552,7 @@ function abrir(id){
   p.innerHTML=`<span class="pclose" onclick="cerrar()">✕ Cerrar</span>
     <h2 style="clear:both;">🧾 ${s.economico||s.folio||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${s.vehiculo||''}</span></h2>
     <div style="display:flex;gap:3px;margin:16px 0;flex-wrap:wrap;">${pipe}</div>
+    ${importeBox}
     ${accion}
     <div class="info">
       <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
@@ -594,6 +617,29 @@ async function subirGate(id,tipo,input){
     else await sb.from('tm_evidencias').insert({servicio_id:id,tipo,url:publicUrl});
     await cargarTodo();
   }catch(e){ alert('Error al subir: '+(e.message||e)); await cargarTodo(); }
+}
+function okGuardado(btnId, texto){
+  const b=document.getElementById(btnId); if(!b) return;
+  if(!b.dataset.orig) b.dataset.orig=b.textContent;
+  b.textContent=texto||'✓ Guardado';
+  b.style.background='#12a878'; b.style.color='#04120c'; b.disabled=false;
+}
+function reactivar(btnId){
+  const b=document.getElementById(btnId); if(!b||!b.dataset.orig) return;
+  b.textContent=b.dataset.orig;
+  b.style.background='linear-gradient(135deg,#22d39a,#12a878)'; b.style.color='#04120c';
+}
+async function guardarImporte(id){
+  const inp=document.getElementById('imp-'+id);
+  const v=inp?inp.value.trim():'';
+  if(v===''){ alert('Escribe el importe pagado.'); return; }
+  const n=parseFloat(v);
+  if(isNaN(n)||n<0){ alert('El importe debe ser un número válido.'); return; }
+  const { error }=await sb.from('tm_servicios').update({importe_pagado:n}).eq('id',id);
+  if(error){ alert('No se guardó: '+error.message); return; }
+  const s=servicios.find(x=>x.id===id); if(s) s.importe_pagado=n;
+  okGuardado('btn-imp-'+id);
+  abrir(id);   // se repinta para actualizar la comparación con lo cotizado
 }
 async function guardarCampos(id,campos){
   const upd={}; let falta=false;

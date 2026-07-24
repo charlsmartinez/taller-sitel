@@ -308,7 +308,7 @@ const ESPECIALES=['No Autorizado / Rechazado','Garantía'];
 const GATES={
  'Autorizado':['cotizacion','envio_cotizacion'],                               // del 2 (Cotización): PDF + envío al cliente/Telmex
  'Compra de Refacciones y Reparación':['autorizacion'],                        // del 3 (Autorización)
- 'Reparado':['ticket_compra'],                                                 // del 4 (Compras)
+ 'Reparado':[],                                                 // del 4 (Compras)
  'Pendiente de OT':['refacciones_usadas','refacciones_compradas','refacciones_montadas','entrega_frontal','entrega_lateralDer','entrega_lateralIzq','entrega_trasera','entrega_tablero','entrega_motor','entrega_odometro'], // del 5 (Reparación)
  'Auto Entregado':['correo_ot_cliente'],                                       // del 6 (Pend. de OT)
  'Pendiente de Factura':['formato_entrega_firmado','identificacion_receptor'], // del 7 (Entregado)
@@ -327,7 +327,7 @@ const TXT_BTN={
   'Compra de Refacciones y Reparación':'Avanzar a COMPRAS',
   'Reparado':'Avanzar a REPARACIÓN',
   'Auto Entregado':'Entregar auto',
-  'Se Envía Factura a Telmex':'Factura enviada',
+  'Se Envía Factura a Telmex':'Factura enviada TMX',
   'Factura Pagada':'Cerrar: factura pagada'
 };
 // Nombre amigable del paso para los mensajes en pantalla
@@ -355,7 +355,7 @@ const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  entrega_frontal:'unidad lista: frontal',entrega_lateralDer:'unidad lista: lateral der.',entrega_lateralIzq:'unidad lista: lateral izq.',
  entrega_trasera:'unidad lista: trasera',entrega_tablero:'unidad lista: tablero',entrega_motor:'unidad lista: motor',entrega_odometro:'unidad lista: odómetro'};
 // Campos requeridos por paso
-const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago','importe_pagado']};  // OT capturable desde paso 4; si ya está, no se vuelve a pedir
+const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // OT capturable desde paso 4; si ya está, no se vuelve a pedir
 const COLOR={'Diagnóstico':'#f5b800','Cotización':'#ff9800','Autorizado':'#3b82f6',
  'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899',
  'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9',
@@ -403,7 +403,7 @@ async function iniciar(user){
   document.getElementById('sb-side').classList.remove('hide');
   document.getElementById('sb-main').classList.remove('hide');
   const fe=document.getElementById('f-est');
-  PIPELINE.concat(ESPECIALES).forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; fe.appendChild(o); });
+  PIPELINE.concat(ESPECIALES).forEach(p=>{ const o=document.createElement('option'); o.value=p; const i=PIPELINE.indexOf(p); o.textContent=(i>=0?((i+1)+'. '+CORTO[i]):p); fe.appendChild(o); });
   await cargarConfig(); await cargarPlazas(); await cargarTodo(); suscribir();
 }
 async function cargarPlazas(){
@@ -522,9 +522,24 @@ function alertaAutorizacion(s){
 }
 const evisDe=id=>evis.filter(e=>e.servicio_id===id);
 let CFG={markup_piezas:1.20, markup_electrico:1.30, iva:0.16, vigencia_dias:15};
+let COPES=[];
 async function cargarConfig(){
   const {data}=await sb.from('tm_config').select('clave,valor');
   if(data) data.forEach(c=>{ CFG[c.clave]=Number(c.valor); });
+  try{ const {data:cp}=await sb.from('tm_copes').select('plaza,nombre').eq('activo',true).order('nombre'); COPES=cp||[]; }catch(e){ COPES=[]; }
+}
+// Confirmación visual de guardado: el botón se queda en verde y el menú no se mueve
+function okGuardado(btnId, texto){
+  const b=document.getElementById(btnId); if(!b) return;
+  b.disabled=false;
+  if(!b.dataset.orig) b.dataset.orig=b.textContent;
+  b.textContent=texto||'✓ Guardado';
+  b.style.background='#12a878'; b.style.color='#04120c'; b.style.borderColor='#12a878';
+}
+function reactivar(btnId){
+  const b=document.getElementById(btnId); if(!b||!b.dataset.orig) return;
+  b.textContent=b.dataset.orig;
+  b.style.background='linear-gradient(135deg,#22d39a,#12a878)'; b.style.color='#04120c';
 }
 // Aumento por pieza: mecánica 20% · eléctrica 30%
 function markupDe(r){ return (r && r.tipo_pieza==='electrica') ? (CFG.markup_electrico||1.30) : (CFG.markup_piezas||1.20); }
@@ -712,7 +727,7 @@ function abrir(id){
     if(refsSinFactura.length){
       alertaFacturas=`<div style="margin:12px 0;background:rgba(255,184,77,.09);border:1px solid rgba(255,184,77,.35);border-left:4px solid #ffb84d;border-radius:10px;padding:12px 15px;">
         <div style="font-size:12px;font-weight:900;color:#ffb84d;margin-bottom:6px;">⚠️ FACTURAS DE REFACCIÓN PENDIENTES (${refsSinFactura.length})</div>
-        <div style="font-size:11.5px;color:#e8d9b8;line-height:1.6;">Compras aún debe subir la factura (PDF y XML) de: ${refsSinFactura.map(r=>`<b>${r.descripcion}</b>`).join(' · ')}.<br>Estas se cargan desde el <b>panel de Compras</b>. La orden no podrá cerrarse como Pagada hasta completarlas.</div>
+        <div style="font-size:11.5px;color:#e8d9b8;line-height:1.6;">Compras aún debe subir la factura (PDF y XML) de: ${refsSinFactura.map(r=>`<b>${r.descripcion}</b>`).join(' · ')}.<br>Estas se cargan desde el <b>panel de Compras</b>. La orden se puede cerrar, pero queda marcada como <b>incompleta</b> hasta que lleguen.</div>
       </div>`;
     }
   }
@@ -752,15 +767,18 @@ function abrir(id){
   let partsRows=lines.map(r=>{
     const tp = r.tipo_pieza==='electrica' ? 'electrica' : 'mecanica';
     const pct = Math.round((markupDe(r)-1)*100);
-    const chipTipo = editRef
-      ? `<button class="btn-sm" style="padding:4px 10px;font-size:10.5px;font-weight:800;${tp==='electrica'?'background:rgba(167,123,255,.16);color:#c4a7ff;border-color:rgba(167,123,255,.45);':'background:rgba(95,139,255,.14);color:#8fb0ff;border-color:rgba(95,139,255,.4);'}" onclick="toggleTipoPieza('${r.id}')" title="Cambiar entre mecánica (20%) y eléctrica (30%)">${TIPO_TXT[tp]} ${pct}%</button>`
-      : `<span style="font-size:10.5px;font-weight:700;color:${tp==='electrica'?'#c4a7ff':'#8fb0ff'};">${TIPO_TXT[tp]} ${pct}%</span>`;
+    // Las adicionales las absorbe la empresa: no llevan aumento, por eso no muestran tipo
+    const chipTipo = r.es_adicional
+      ? `<span style="font-size:12px;color:var(--muted);">—</span>`
+      : (editRef
+        ? `<button class="btn-sm" style="padding:4px 10px;font-size:10.5px;font-weight:800;${tp==='electrica'?'background:rgba(167,123,255,.16);color:#c4a7ff;border-color:rgba(167,123,255,.45);':'background:rgba(95,139,255,.14);color:#8fb0ff;border-color:rgba(95,139,255,.4);'}" onclick="toggleTipoPieza('${r.id}')" title="Cambiar entre mecánica (20%) y eléctrica (30%)">${TIPO_TXT[tp]} ${pct}%</button>`
+        : `<span style="font-size:10.5px;font-weight:700;color:${tp==='electrica'?'#c4a7ff':'#8fb0ff'};">${TIPO_TXT[tp]} ${pct}%</span>`);
     return `<tr>
     <td>${r.descripcion||''}${r.es_adicional?'<span style="font-size:10px;color:#ffb84d;font-weight:800;"> · adicional</span>':''}</td>
     <td style="text-align:center;">${r.cantidad}</td>
     <td style="text-align:center;">${chipTipo}</td>
-    <td>${editRef?`<input list="prov-list" id="prov-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:140px;font-size:11.5px;">`:(r.proveedor||'—')}</td>
-    <td style="text-align:right;">${editRef?`<input type="number" step="0.01" id="costo-${r.id}" value="${r.costo||0}" style="width:92px;text-align:right;">`:fmt(r.costo)}</td>
+    <td>${editRef?`<input list="prov-list" id="prov-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:140px;font-size:11.5px;" oninput="reactivar('gr-${r.id}')">`:(r.proveedor||'—')}</td>
+    <td style="text-align:right;">${editRef?`<input type="number" step="0.01" id="costo-${r.id}" value="${r.costo||0}" style="width:92px;text-align:right;" oninput="reactivar('gr-${r.id}')">`:fmt(r.costo)}</td>
     <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${fmt(precioCliente(r))}</td>
     ${editRef?`<td style="text-align:center;white-space:nowrap;"><button class="btn-sm" id="gr-${r.id}" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;margin-right:5px;" onclick="guardarRef('${r.id}')">Guardar</button><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:(editable?'<td></td>':'')}</tr>`;}).join('')
     ||`<tr><td colspan="7" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
@@ -851,21 +869,33 @@ function abrir(id){
   const moBox = editable&&s.nuevo_flujo!==false
     ? `<div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
         <label style="margin:0;white-space:nowrap;">Mano de obra:</label>
-        <input type="number" step="0.01" id="mo-input" value="${s.mano_obra||0}" style="margin:0;max-width:150px;">
-        <button class="btn-sm" onclick="setMO('${id}',document.getElementById('mo-input').value)">Guardar</button>
+        <input type="number" step="0.01" id="mo-input" value="${s.mano_obra||0}" style="margin:0;max-width:150px;" oninput="reactivar('btn-mo')">
+        <button class="btn-sm" id="btn-mo" onclick="setMO('${id}',document.getElementById('mo-input').value)">Guardar</button>
       </div>` : '';
+
+  // En el paso de Pendiente de OT se puede corregir la OT si llegó mal
+  const otBox = (s.estatus==='Pendiente de OT' && editable)
+    ? `<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:12px 15px;margin-bottom:12px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:800;margin-bottom:7px;">Número de OT</div>
+        <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="ot-${id}" value="${(s.ot||'').replace(/"/g,'&quot;')}" placeholder="Número de OT del cliente" style="flex:1;min-width:200px;margin-bottom:0;" oninput="reactivar('btn-ot-${id}')">
+          <button class="btn-sm" id="btn-ot-${id}" onclick="setOT('${id}')">Guardar</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:7px;">Si el cliente envió la OT con un error, corrígela aquí.</div>
+      </div>`
+    : '';
 
   p.innerHTML=`<span class="pclose" onclick="cerrar()">✕ Cerrar</span>
     <h2 style="clear:both;">🚗 ${s.economico||s.folio||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${s.vehiculo||''}</span></h2>
     <div class="pipe">${pipe}</div>
-    ${garBox}${repBox}${paqueteBox(s,evT)}${alertaFacturas}${gateBox}
+    ${garBox}${repBox}${otBox}${paqueteBox(s,evT)}${alertaFacturas}${gateBox}
     ${(s.estatus==='Cotización'&&editable)?`
       <div style="margin:8px 0;"><button class="btn-sm" onclick="editarDatos('${id}')">✏️ Corregir datos de la unidad</button></div>
       <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:11px 15px;margin:8px 0;">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:800;margin-bottom:6px;">Atención (a quién va dirigida la cotización)</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <input type="text" id="aten-${id}" value="${(s.atencion||'').replace(/"/g,'&quot;')}" placeholder="Ej. ING JUAN VERGARA — o déjalo vacío para llenar a mano" style="flex:1;min-width:230px;margin-bottom:0;">
-          <button class="btn-sm" onclick="setAtencion('${id}')">Guardar</button>
+          <input type="text" id="aten-${id}" value="${(s.atencion||'').replace(/"/g,'&quot;')}" placeholder="Ej. ING JUAN VERGARA — o déjalo vacío para llenar a mano" style="flex:1;min-width:230px;margin-bottom:0;" oninput="reactivar('btn-aten-${id}')">
+          <button class="btn-sm" id="btn-aten-${id}" onclick="setAtencion('${id}')">Guardar</button>
           <button class="btn-sm" onclick="verFormatoCot('${id}')">👁️ Ver formato</button>
         </div>
       </div>`:''}
@@ -1247,10 +1277,18 @@ async function verFormatoCot(id){
 async function editarDatos(id){
   const s=servicios.find(x=>x.id===id); if(!s) return;
   const campos=[['economico','Económico'],['marca','Marca'],['modelo','Modelo'],['anio','Año'],
-                ['placas','Placas'],['serie','Serie (VIN)'],['kilometraje','Kilometraje'],['diagnosticos','Diagnóstico']];
+                ['placas','Placas'],['serie','Serie (VIN)'],['kilometraje','Kilometraje'],
+                ['cope','COPE de origen'],['diagnosticos','Diagnóstico']];
+  const copesPlaza=(COPES||[]).filter(x=>norm(x.plaza)===norm(s.plaza)).map(x=>x.nombre);
   const html=campos.map(([k,l])=>`<div style="margin-bottom:9px;"><label style="display:block;font-size:10px;color:#8b93b8;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px;">${l}</label>${
     k==='diagnosticos'
       ? `<textarea id="ed-${k}" rows="3" style="width:100%;">${(s[k]||'').replace(/</g,'&lt;')}</textarea>`
+      : k==='cope'
+      ? `<select id="ed-cope" style="width:100%;"><option value="">— Sin COPE —</option>${
+          copesPlaza.map(n=>`<option value="${n.replace(/"/g,'&quot;')}" ${s.cope===n?'selected':''}>${n}</option>`).join('')
+        }<option value="Otro" ${s.cope==='Otro'?'selected':''}>Otro</option>${
+          (s.cope && s.cope!=='Otro' && !copesPlaza.includes(s.cope))?`<option value="${s.cope.replace(/"/g,'&quot;')}" selected>${s.cope} (actual)</option>`:''
+        }</select>`
       : `<input type="${k==='anio'||k==='kilometraje'?'number':'text'}" id="ed-${k}" value="${(s[k]??'').toString().replace(/"/g,'&quot;')}" style="width:100%;">`}</div>`).join('');
   const bg=document.createElement('div');
   bg.style.cssText='position:fixed;inset:0;background:rgba(4,6,18,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;';
@@ -1279,8 +1317,18 @@ async function editarDatos(id){
 }
 async function setAtencion(id){
   const v=document.getElementById('aten-'+id).value.trim();
-  await sb.from('tm_servicios').update({atencion:v||null}).eq('id',id);
-  await cargarTodo(); abrir(id);
+  const {error}=await sb.from('tm_servicios').update({atencion:v||null}).eq('id',id);
+  if(error){ alert('No se guardó: '+error.message); return; }
+  const s=servicios.find(x=>x.id===id); if(s) s.atencion=v||null;
+  okGuardado('btn-aten-'+id);
+}
+// Corregir la OT sin salir del paso (por si el cliente la mandó mal)
+async function setOT(id){
+  const v=document.getElementById('ot-'+id).value.trim();
+  const {error}=await sb.from('tm_servicios').update({ot:v||null}).eq('id',id);
+  if(error){ alert('No se guardó: '+error.message); return; }
+  const s=servicios.find(x=>x.id===id); if(s) s.ot=v||null;
+  okGuardado('btn-ot-'+id);
 }
 async function regresarACotizacion(id){
   const s=servicios.find(x=>x.id===id); if(!s) return;
@@ -1368,8 +1416,7 @@ async function guardarRef(refId){
   const r=refs.find(x=>x.id===refId);
   if(r){ r.proveedor=prov; r.costo=costo; r.precio=Math.round(costo*markupDe(r)*100)/100; }
   refrescarTotales(activeId);
-  if(btn){ btn.disabled=false; btn.textContent='✓ Guardado'; btn.style.background='#12a878';
-    setTimeout(()=>{ btn.textContent='Guardar'; btn.style.background='linear-gradient(135deg,#22d39a,#12a878)'; },1400); }
+  okGuardado('gr-'+refId);
 }
 async function setCosto(refId,val,el){
   const v=parseFloat(val)||0;
@@ -1406,9 +1453,13 @@ function refrescarTotales(id){
   }
 }
 async function setMO(id,val){
-  const mo=parseFloat(val)||0;
-  if(mo<0){ alert('La mano de obra no puede ser negativa.'); return; }
-  await sb.from('tm_servicios').update({mano_obra:mo}).eq('id',id); await cargarTodo();
+  const v=parseFloat(val)||0;
+  if(v<0){ alert('La mano de obra no puede ser negativa.'); return; }
+  const {error}=await sb.from('tm_servicios').update({mano_obra:v}).eq('id',id);
+  if(error){ alert('No se guardó: '+error.message); return; }
+  const s=servicios.find(x=>x.id===id); if(s) s.mano_obra=v;
+  refrescarTotales(id);
+  okGuardado('btn-mo');
 }
 async function toggleTipoPieza(refId){
   const r=refs.find(x=>x.id===refId); if(!r) return;

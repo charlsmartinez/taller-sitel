@@ -293,11 +293,12 @@ async function cargarCopes(){
   try{
     const { data }=await sb.from('tm_copes').select('nombre,area').eq('plaza',plazaNom).eq('activo',true).order('nombre');
     COPES=data||[];
-    if(!COPES.length){ sel.innerHTML='<option value="">Sin COPEs cargados para '+plazaNom+'</option>'; return; }
+    if(!COPES.length){ sel.innerHTML='<option value="">— Selecciona el COPE —</option><option value="Otro">Otro</option>'; return; }
     COPES.forEach(c=>{
       const o=document.createElement('option'); o.value=c.nombre; o.textContent=c.nombre+' ('+c.area+')';
       sel.appendChild(o);
     });
+    const otro=document.createElement('option'); otro.value='Otro'; otro.textContent='Otro'; sel.appendChild(otro);
   }catch(e){ sel.innerHTML='<option value="">No se pudo cargar la lista</option>'; }
 }
 async function cargarPerfil(user){
@@ -417,7 +418,8 @@ function abrirReparacion(id){
       const ya=t.has(x.k); const n=cnt[x.k]||0;
       return `<label style="border:1.5px dashed ${ya?'rgba(34,211,154,.5)':'var(--line)'};background:${ya?'rgba(34,211,154,.08)':'#12142b'};border-radius:11px;padding:11px 9px;text-align:center;font-size:11.5px;font-weight:700;color:${ya?'#22d39a':'var(--ink)'};cursor:pointer;display:block;">
         ${ya?'✓':(x.multi?'📷+':'📷')} ${x.n}${(x.multi&&n>0)?` <span style="opacity:.85;">(${n})</span>`:''}
-        ${x.multi?'<div style="font-size:9.5px;font-weight:600;color:var(--muted);margin-top:2px;">toca para agregar más</div>':''}
+        ${ya?'<div style="font-size:9.5px;font-weight:600;color:#3fe0ad;margin-top:3px;">✓ Guardada · toca para volver a tomarla</div>'
+            :(x.multi?'<div style="font-size:9.5px;font-weight:600;color:var(--muted);margin-top:2px;">toca para agregar más</div>':'')}
         <input type="file" accept="image/*" ${x.multi?'multiple':''} style="display:none;" onchange="subirRep('${id}','${x.k}',this)">
       </label>`;}).join('')}</div>`;
   det.innerHTML=`<div class="card">

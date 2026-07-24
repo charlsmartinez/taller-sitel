@@ -198,8 +198,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
         <select id="f-plaza" onchange="render()"><option value="Todos">📍 Todas las Plazas</option></select>
         <select id="f-est" onchange="render()"><option value="Todos">Todas las etapas (10-13)</option></select>
         <select id="f-carga" onchange="render()">
+          <option value="pend" selected>⏳ Pendientes de archivos</option>
           <option value="Todos">📎 Archivos: todos</option>
-          <option value="pend">⏳ Pendientes de archivos</option>
           <option value="ok">✅ Archivos completos</option>
         </select>
         <input type="text" id="f-buscar" placeholder="🔎 Buscar por económico, OT, COT o nombre de pieza (para garantías)..." oninput="render()">
@@ -230,7 +230,7 @@ const DESDE='Compra de Refacciones y Reparación';
 const VISIBLES=['Compra de Refacciones y Reparación','Reparado','Pendiente de OT','Auto Entregado','Pendiente de Factura','Contabilidad Emitió Factura','Se Envía Factura a Telmex','Factura Pagada'];
 const FLUJO=VISIBLES;
 const NUM={'Compra de Refacciones y Reparación':4,'Reparado':5,'Pendiente de OT':6,'Auto Entregado':7,'Pendiente de Factura':8,'Contabilidad Emitió Factura':9,'Se Envía Factura a Telmex':10,'Factura Pagada':11};
-const CORTO={'Compra de Refacciones y Reparación':'Compras','Reparado':'Reparación','Pendiente de OT':'Pend. OT','Auto Entregado':'Entregado','Pendiente de Factura':'Pend. factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada TMX','Factura Pagada':'Pagada'};
+const CORTO={'Compra de Refacciones y Reparación':'Compras','Reparado':'Reparación','Pendiente de OT':'Pendiente de OT','Auto Entregado':'Entregar auto','Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada a TMX','Factura Pagada':'Factura pagada'};
 const COLOR={'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899','Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#0e9f6e'};
 const GNOM={factura_refaccion_pdf:'factura de la refacción (PDF)',factura_refaccion_xml:'factura de la refacción (XML)'};
 const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -468,7 +468,7 @@ function abrir(id){
     const guardado = r.costo_final!=null;
     const cf = guardado ? r.costo_final : '';
     const okStyle='border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
-    return `<div style="border:1px solid ${guardado?'rgba(34,211,154,.28)':'var(--line)'};border-radius:11px;padding:12px 14px;margin-bottom:9px;background:#12142b;">
+    return `<div id="fila-${r.id}" style="border:1px solid ${guardado?'rgba(34,211,154,.45)':'var(--line)'};border-radius:11px;padding:12px 14px;margin-bottom:9px;background:${guardado?'rgba(34,211,154,.06)':'#12142b'};">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:800;font-size:14px;color:var(--ink);">${r.descripcion||'—'} ${r.es_adicional?'<span style=\'font-size:10px;color:#ffb84d;font-weight:700;\'>· adicional</span>':''}</div>
         <div style="font-size:11px;color:var(--muted);">Cant: <b style="color:var(--ink);">${r.cantidad||1}</b> · Cotizado: <b style="color:var(--ink);">${fmt(r.costo)}</b></div>
@@ -476,10 +476,10 @@ function abrir(id){
       <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:130px;">
           <label style="font-size:10px;">Costo final (real)</label>
-          <input type="number" step="0.01" id="cf-${r.id}" value="${cf}" placeholder="$ real de la pieza" style="margin:0;">
+          <input type="number" step="0.01" id="cf-${r.id}" value="${cf}" placeholder="$ real de la pieza" style="margin:0;" oninput="reactivar('gc-${r.id}')">
         </div>
-        <button class="btn-sm" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;" onclick="guardarCostoFinal('${r.id}')">Guardar costo</button>
-        ${guardado?CHIP_OK:''}
+        <button class="btn-sm" id="gc-${r.id}" style="background:${guardado?'#12a878':'linear-gradient(135deg,#22d39a,#12a878)'};color:#04120c;border:0;font-weight:800;" onclick="guardarCostoFinal('${r.id}')">${guardado?'✓ Guardado':'Guardar costo'}</button>
+        <span id="chip-${r.id}" style="display:${guardado?'inline-flex':'none'};align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Costo guardado</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;">
         ${bloqueArchivo(id, r, 'pdf', 'factura', urlPDF)}
@@ -512,8 +512,8 @@ function abrir(id){
     ? `<div style="margin:16px 0;padding:14px;border-radius:12px;background:rgba(34,211,154,.06);border:1px solid rgba(34,211,154,.25);">
         <div style="font-size:11px;font-weight:900;color:#3fe0ad;letter-spacing:.5px;margin-bottom:8px;">AVANZAR EL FLUJO</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Cuando ya capturaste el costo real de todas las piezas, manda la orden a Reparación. Los archivos de factura los puedes subir después.</div>
-        <button class="btn-adv" ${puedeAvanzar?'':'disabled'} onclick="avanzarAReparacion('${id}')">Avanzar a REPARACIÓN →</button>
-        ${puedeAvanzar?'':'<div style="font-size:11px;color:#ffd75e;margin-top:8px;">Captura primero el costo final de todas las piezas.</div>'}
+        <button class="btn-adv" id="btn-avanzar" ${puedeAvanzar?'':'disabled'} onclick="avanzarAReparacion('${id}')">Avanzar a REPARACIÓN →</button>
+        <div id="aviso-falta" style="display:${puedeAvanzar?'none':''};font-size:11px;color:#ffd75e;margin-top:8px;">Captura primero el costo final de todas las piezas.</div>
       </div>`
     : '';
 
@@ -561,8 +561,8 @@ function abrir(id){
     ${botonAvance}
     ${archivosHtml}
     <div class="money" style="grid-template-columns:1fr 1fr;">
-      <div class="mbox"><div class="ml">Costo cotizado</div><div class="mv">${fmt(totalCotizado)}</div></div>
-      <div class="mbox tot"><div class="ml">Costo real pagado</div><div class="mv">${fmt(totalReal)}</div></div>
+      <div class="mbox"><div class="ml">Costo cotizado</div><div class="mv" id="tot-cot">${fmt(totalCotizado)}</div></div>
+      <div class="mbox tot"><div class="ml">Costo real pagado</div><div class="mv" id="tot-real">${fmt(totalReal)}</div></div>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:6px;">El costo real es solo interno. No modifica lo que se le cotizó al cliente.</div>`;
   p.classList.add('open');
@@ -578,6 +578,19 @@ function comprimir(file){ return new Promise(res=>{ const img=new Image(),u=URL.
 async function registrarHistorial(servId, accion){
   try{ await sb.from('tm_historial').insert({servicio_id:servId, estatus:accion, usuario:(profile&&profile.nombre)||'Compras', fecha:new Date().toISOString()}); }catch(e){}
 }
+// Marca visual de guardado, sin mover el panel
+function okGuardado(btnId, texto){
+  const b=document.getElementById(btnId); if(!b) return;
+  if(!b.dataset.orig) b.dataset.orig=b.textContent;
+  b.textContent=texto||'✓ Guardado';
+  b.style.background='#12a878'; b.style.color='#04120c'; b.style.borderColor='#12a878';
+  b.disabled=false;
+}
+function reactivar(btnId){
+  const b=document.getElementById(btnId); if(!b||!b.dataset.orig) return;
+  b.textContent=b.dataset.orig;
+  b.style.background='linear-gradient(135deg,#22d39a,#12a878)'; b.style.color='#04120c';
+}
 async function guardarCostoFinal(refId){
   const inp=document.getElementById('cf-'+refId);
   const v=inp?inp.value.trim():'';
@@ -587,8 +600,32 @@ async function guardarCostoFinal(refId){
   const { error }=await sb.from('tm_refacciones').update({costo_final:costo}).eq('id',refId);
   if(error){ alert('No se pudo guardar: '+error.message); return; }
   const r=refs.find(x=>x.id===refId);
-  if(r) await registrarHistorial(r.servicio_id, 'Compras capturó costo real: '+(r.descripcion||'pieza')+' — $'+costo.toFixed(2));
-  await cargarTodo(); if(activeId) abrir(activeId);
+  if(r){
+    r.costo_final=costo;
+    registrarHistorial(r.servicio_id, 'Compras capturó costo real: '+(r.descripcion||'pieza')+' — $'+costo.toFixed(2));
+  }
+  // Se marca el guardado en su sitio: el panel no se re-dibuja ni se mueve
+  okGuardado('gc-'+refId);
+  const fila=document.getElementById('fila-'+refId);
+  if(fila){ fila.style.borderColor='rgba(34,211,154,.45)'; fila.style.background='rgba(34,211,154,.06)'; }
+  const chip=document.getElementById('chip-'+refId);
+  if(chip) chip.style.display='inline-flex';
+  actualizarResumen();
+}
+// Refresca solo los totales y el aviso, sin tocar el resto del panel
+function actualizarResumen(){
+  const s=servicios.find(x=>x.id===activeId); if(!s) return;
+  const rs=refsDe(activeId);
+  const cot=rs.reduce((a,r)=>a+(r.costo||0)*(r.cantidad||1),0);
+  const real=rs.reduce((a,r)=>a+((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1),0);
+  const tc=document.getElementById('tot-cot'), tr=document.getElementById('tot-real');
+  if(tc) tc.textContent=fmt(cot);
+  if(tr) tr.textContent=fmt(real);
+  const falta=rs.filter(r=>!r.es_adicional && r.costo_final==null).length;
+  const btn=document.getElementById('btn-avanzar');
+  if(btn){ btn.disabled = falta>0; }
+  const aviso=document.getElementById('aviso-falta');
+  if(aviso) aviso.style.display = falta>0 ? '' : 'none';
 }
 async function subirFactRef(servId, refId, tipo, input){
   const f=input.files&&input.files[0]; if(!f) return;
@@ -609,8 +646,10 @@ async function subirFactRef(servId, refId, tipo, input){
     if(ya) await sb.from('tm_evidencias').update({url}).eq('id',ya.id);
     else await sb.from('tm_evidencias').insert({servicio_id:servId,tipo:evTipo,url});
     const r=refs.find(x=>x.id===refId);
-    await registrarHistorial(servId, 'Compras subió archivo de factura: '+((r&&r.descripcion)||'pieza'));
-    await cargarTodo(); if(activeId) abrir(activeId);
+    registrarHistorial(servId, 'Compras subió archivo de factura: '+((r&&r.descripcion)||'pieza'));
+    if(ya) ya.url=url; else evis.push({servicio_id:servId,tipo:evTipo,url});
+    // Se repinta solo ese archivo, el panel se queda quieto
+    cont.outerHTML = bloqueArchivo(servId, r||{id:refId,descripcion:''}, tipo, tipo==='pdf'?'factura':'XML / comprobante', url);
   }catch(e){ alert('Error al subir: '+(e.message||e)); cont.innerHTML=original; }
 }
 async function avanzarAReparacion(id){
