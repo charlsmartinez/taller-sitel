@@ -156,7 +156,13 @@ textarea{ min-height:80px; resize:vertical; }
   <div class="card hide" id="plaza-sel-box">
     <h2>Plaza</h2>
     <div class="hint">Tu usuario ve todas las plazas. Indica en cuál se está recibiendo la unidad.</div>
-    <select id="f-plaza"></select>
+    <select id="f-plaza" onchange="cargarCopes()"></select>
+  </div>
+
+  <div class="card">
+    <h2>COPE de origen <span class="req">*</span></h2>
+    <div class="hint">¿De qué centro de trabajo viene la unidad?</div>
+    <select id="f-cope"><option value="">— Selecciona el COPE —</option></select>
   </div>
 
   <div class="card">
@@ -277,6 +283,23 @@ async function login(){
   if(error){ m.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Ingresar'; return; }
   await cargarPerfil(data.user); b.disabled=false; b.textContent='Ingresar';
 }
+// COPEs activos de la plaza donde se recibe la unidad
+let COPES=[];
+async function cargarCopes(){
+  const sel=document.getElementById('f-cope'); if(!sel) return;
+  const plazaNom = (profile && profile.plaza) || (PLAZA_ELEGIDA && PLAZA_ELEGIDA.nombre) || '';
+  sel.innerHTML='<option value="">— Selecciona el COPE —</option>';
+  if(!plazaNom){ sel.innerHTML='<option value="">Elige primero la plaza</option>'; return; }
+  try{
+    const { data }=await sb.from('tm_copes').select('nombre,area').eq('plaza',plazaNom).eq('activo',true).order('nombre');
+    COPES=data||[];
+    if(!COPES.length){ sel.innerHTML='<option value="">Sin COPEs cargados para '+plazaNom+'</option>'; return; }
+    COPES.forEach(c=>{
+      const o=document.createElement('option'); o.value=c.nombre; o.textContent=c.nombre+' ('+c.area+')';
+      sel.appendChild(o);
+    });
+  }catch(e){ sel.innerHTML='<option value="">No se pudo cargar la lista</option>'; }
+}
 async function cargarPerfil(user){
   const { data:prof, error } = await sb.from('tm_profiles').select('id,nombre,plaza_id,rol,tm_plazas(nombre)').eq('id',user.id).single();
   if(error||!prof){ document.getElementById('login-msg').textContent='Tu usuario no tiene perfil asignado.'; await sb.auth.signOut(); return; }
@@ -290,7 +313,8 @@ async function cargarPerfil(user){
     document.getElementById('login-msg').textContent='Tu usuario no tiene plaza asignada. Avisa al administrador.';
     await sb.auth.signOut(); return;
   }
-  profile={ id:prof.id, plaza_id:prof.plaza_id, plaza:prof.tm_plazas?prof.tm_plazas.nombre:'', nombre:prof.nombre||user.email };
+  profile={ id:prof.id, plaza_id:prof.plaza_id, plaza:prof.tm_plazas?prof.tm_plazas.nombre:'', nombre:prof.nombre||user.email, rol:prof.rol };
+  cargarCopes();
   document.getElementById('plaza-badge').textContent='📍 '+(profile.plaza||'Elige la plaza');
   if(!profile.plaza_id) await mostrarSelectorPlaza();   // admin y gerencia no tienen plaza propia
   document.getElementById('f-fecha').value=new Date().toISOString().slice(0,10);
@@ -311,11 +335,12 @@ async function mostrarSelectorPlaza(){
   sel.innerHTML='<option value="">— Selecciona la plaza —</option>'
     + (data||[]).map(p=>`<option value="${p.id}|${p.nombre}">${p.nombre}</option>`).join('');
   sel.onchange=()=>{
-    if(!sel.value){ PLAZA_ELEGIDA=null; document.getElementById('plaza-badge').textContent='📍 Elige la plaza'; return; }
+    if(!sel.value){ PLAZA_ELEGIDA=null; document.getElementById('plaza-badge').textContent='📍 Elige la plaza'; cargarCopes(); return; }
     const [id,nombre]=sel.value.split('|');
     PLAZA_ELEGIDA={id,nombre};
     document.getElementById('plaza-badge').textContent='📍 '+nombre;
     const mp=document.getElementById('menu-plaza'); if(mp) mp.textContent='📍 '+nombre;
+    cargarCopes();
   };
 }
 function irA(v){
@@ -481,7 +506,7 @@ async function enviar(){
   // El admin/gerente puede registrar sin la unidad presente (cotizaciones a distancia): nada obligatorio.
   const libre = profile.rol==='admin' || profile.rol==='gerente';
   const obligatorios = libre ? [] :
-    [['f-economico','Económico'],['f-marca','Marca'],['f-modelo','Modelo'],['f-anio','Año'],['f-placas','Placa'],['f-fecha','Fecha de ingreso']];
+    [['f-economico','Económico'],['f-marca','Marca'],['f-modelo','Modelo'],['f-anio','Año'],['f-placas','Placa'],['f-fecha','Fecha de ingreso'],['f-cope','COPE de origen']];
   const faltanCampos=[];
   obligatorios.forEach(([id,l])=>{ const el=document.getElementById(id); if(!el.value.trim()){ faltanCampos.push(l); el.classList.add('err'); } else el.classList.remove('err'); });
   if(faltanCampos.length){ msg.className='msg err'; msg.textContent='Faltan datos: '+faltanCampos.join(', '); window.scrollTo(0,0); return; }
@@ -499,7 +524,7 @@ async function enviar(){
     const { data:serv, error:e1 } = await sb.from('tm_servicios').insert({
       plaza_id:profile.plaza_id||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.id)||null, plaza:profile.plaza||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.nombre)||null,
       economico:g('f-economico'), marca:g('f-marca'), modelo:g('f-modelo'), anio:g('f-anio'),
-      placas:g('f-placas'), serie:g('f-serie'), vehiculo:vehiculo,
+      placas:g('f-placas'), serie:g('f-serie'), vehiculo:vehiculo, cope:g('f-cope')||null,
       kilometraje:g('f-km'), odometro:g('f-km'),
       diagnosticos:diags, falla:g('f-falla')||diags,
       mecanico:profile.nombre, estatus:'Cotización',

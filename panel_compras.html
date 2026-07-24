@@ -197,6 +197,11 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="board-top">
         <select id="f-plaza" onchange="render()"><option value="Todos">📍 Todas las Plazas</option></select>
         <select id="f-est" onchange="render()"><option value="Todos">Todas las etapas (10-13)</option></select>
+        <select id="f-carga" onchange="render()">
+          <option value="Todos">📎 Archivos: todos</option>
+          <option value="pend">⏳ Pendientes de archivos</option>
+          <option value="ok">✅ Archivos completos</option>
+        </select>
         <input type="text" id="f-buscar" placeholder="🔎 Buscar económico, OT, COT, factura..." oninput="render()">
         <button onclick="exportarExcel()" style="margin-bottom:0;background:linear-gradient(135deg,#f0870a,#f5b800);color:#2a1c00;border:none;border-radius:10px;font-weight:800;cursor:pointer;padding:9px 16px;">📊 Exportar Excel</button>
       </div>
@@ -305,13 +310,27 @@ function setPaso(p){ filtroPaso=p; document.getElementById('f-est').value = (p==
 function limpiarFiltros(){
   document.getElementById('f-plaza').value='Todos';
   document.getElementById('f-est').value='Todos';
+  const fc=document.getElementById('f-carga'); if(fc) fc.value='Todos';
   document.getElementById('f-buscar').value='';
   render();
 }
 
+// Estado de archivos de una orden: 'ok' si todas sus refacciones tienen PDF y XML
+function estadoCarga(sid){
+  const rs=refsDe(sid);
+  if(!rs.length) return 'ok';
+  const falta=rs.some(r=>{
+    if(r.requiere_factura===false) return false;
+    const pdf=evisDe(sid).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
+    const xml=evisDe(sid).some(e=>e.tipo==='factura_refaccion_xml_'+r.id);
+    return !pdf||!xml;
+  });
+  return falta?'pend':'ok';
+}
 function render(){
   const fp=document.getElementById('f-plaza').value;
   const fe=document.getElementById('f-est').value;
+  const fc=(document.getElementById('f-carga')||{value:'Todos'}).value;
   const fb=(document.getElementById('f-buscar').value||'').trim().toLowerCase();
   const plazaSet=servicios.filter(s=>fp==='Todos'||norm(s.plaza)===norm(fp));
 
@@ -358,8 +377,9 @@ function render(){
 
   const rows=plazaSet.filter(s=>{
     const mE=fe==='Todos'||s.estatus===fe;
+    const mC=fc==='Todos'||estadoCarga(s.id)===fc;
     const blob=[s.economico,s.ot,s.cot,s.num_factura,s.serie,s.placas,s.vehiculo].join(' ').toLowerCase();
-    return mE&&(!fb||blob.includes(fb));
+    return mE&&mC&&(!fb||blob.includes(fb));
   }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
 
   const tb=document.getElementById('tbody'); tb.innerHTML='';
@@ -414,22 +434,23 @@ function abrir(id){
   activeId=id; const s=servicios.find(x=>x.id===id); if(!s) return;
   const p=document.getElementById('panel');
   const misRefs=refsDe(id);
-  const ev=evisDe(id); const evT={}; ev.forEach(e=>{ (evT[e.tipo]=evT[e.tipo]||[]).push(e.url); });
 
-  // Barra de pasos (informativa)
   const idx=FLUJO.indexOf(s.estatus);
   const pipe=FLUJO.map((st,i)=>`<div style="flex:1;min-width:70px;text-align:center;font-size:9px;font-weight:700;padding:7px 3px;border-radius:8px;line-height:1.25;
     background:${i<idx?'rgba(34,211,154,.14)':(i===idx?'linear-gradient(135deg,rgba(245,184,0,.25),rgba(245,184,0,.12))':'rgba(255,255,255,.05)')};
     color:${i<idx?'#3fe0ad':(i===idx?'#ffd75e':'#7c85a8')};
     border-bottom:2px solid ${i<idx?'#22d39a':(i===idx?'#f5b800':'rgba(255,255,255,.1)')};">${NUM[st]}. ${CORTO[st]}</div>`).join('');
 
-  // Fila por refacción: costo cotizado (solo lectura), costo final (editable), factura PDF+XML
+  const CHIP_OK='<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>';
+
   const filaRef=(r)=>{
     const pdfKey='factura_refaccion_pdf_'+r.id, xmlKey='factura_refaccion_xml_'+r.id;
-    const tienePDF=(evisDe(id).some(e=>e.tipo===pdfKey));
-    const tieneXML=(evisDe(id).some(e=>e.tipo===xmlKey));
-    const cf = (r.costo_final!=null? r.costo_final : '');
-    return `<div style="border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:9px;background:#12142b;">
+    const tienePDF=evisDe(id).some(e=>e.tipo===pdfKey);
+    const tieneXML=evisDe(id).some(e=>e.tipo===xmlKey);
+    const guardado = r.costo_final!=null;
+    const cf = guardado ? r.costo_final : '';
+    const okStyle='border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
+    return `<div style="border:1px solid ${guardado?'rgba(34,211,154,.28)':'var(--line)'};border-radius:11px;padding:12px 14px;margin-bottom:9px;background:#12142b;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:800;font-size:14px;color:var(--ink);">${r.descripcion||'—'} ${r.es_adicional?'<span style=\'font-size:10px;color:#ffb84d;font-weight:700;\'>· adicional</span>':''}</div>
         <div style="font-size:11px;color:var(--muted);">Cant: <b style="color:var(--ink);">${r.cantidad||1}</b> · Cotizado: <b style="color:var(--ink);">${fmt(r.costo)}</b></div>
@@ -440,10 +461,11 @@ function abrir(id){
           <input type="number" step="0.01" id="cf-${r.id}" value="${cf}" placeholder="$ real de la pieza" style="margin:0;">
         </div>
         <button class="btn-sm" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;" onclick="guardarCostoFinal('${r.id}')">Guardar costo</button>
+        ${guardado?CHIP_OK:''}
       </div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;">
-        <label class="up up-sm" style="flex:1;min-width:150px;${tienePDF?'border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.08);color:#22d39a;':''}">${tienePDF?'✓ Factura PDF':'🧾 Subir factura PDF'}<input type="file" accept="application/pdf" style="display:none;" onchange="subirFactRef('${id}','${r.id}','pdf',this)"></label>
-        <label class="up up-sm" style="flex:1;min-width:150px;${tieneXML?'border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.08);color:#22d39a;':''}">${tieneXML?'✓ Factura XML':'🧾 Subir factura XML'}<input type="file" accept=".xml,text/xml" style="display:none;" onchange="subirFactRef('${id}','${r.id}','xml',this)"></label>
+        <label class="up up-sm" style="flex:1;min-width:160px;${tienePDF?okStyle:''}">${tienePDF?'✓ Archivo guardado (factura)':'📎 Subir factura'}<input type="file" style="display:none;" onchange="subirFactRef('${id}','${r.id}','pdf',this)"></label>
+        <label class="up up-sm" style="flex:1;min-width:160px;${tieneXML?okStyle:''}">${tieneXML?'✓ Archivo guardado (XML)':'📎 Subir XML / comprobante'}<input type="file" style="display:none;" onchange="subirFactRef('${id}','${r.id}','xml',this)"></label>
       </div>
     </div>`;
   };
@@ -452,7 +474,6 @@ function abrir(id){
     ? misRefs.map(filaRef).join('')
     : '<div style="color:#8b93b8;padding:10px 0;">Esta orden no tiene refacciones capturadas.</div>';
 
-  // Resumen de lo que falta
   const faltaCosto=misRefs.filter(r=>!r.es_adicional && r.costo_final==null).length;
   const faltaFact=misRefs.filter(r=>{
     const pdf=evisDe(id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
@@ -462,11 +483,22 @@ function abrir(id){
   const alerta = (faltaCosto||faltaFact)
     ? `<div class="gate" style="background:rgba(245,184,0,.1);border-color:rgba(245,184,0,.35);color:#ffd75e;">
         ${faltaCosto?`Falta capturar el <b>costo final</b> de ${faltaCosto} refacción(es) — sin esto la orden no avanza a Reparación.<br>`:''}
-        ${faltaFact?`Faltan <b>facturas</b> (PDF/XML) de ${faltaFact} refacción(es).`:''}
+        ${faltaFact?`Faltan <b>archivos de factura</b> de ${faltaFact} refacción(es). Puedes subirlos después: la orden se queda aquí hasta completarlos.`:''}
       </div>`
-    : `<div class="gate ok">✓ Todas las refacciones tienen costo final y factura completa.</div>`;
+    : `<div class="gate ok">✓ Todas las refacciones tienen costo final y sus archivos.</div>`;
 
-  // Totales: cotizado al cliente (no cambia) vs costo real interno
+  // Botón de avance: Compras es quien manda la orden a Reparación
+  const enCompras = s.estatus==='Compra de Refacciones y Reparación';
+  const puedeAvanzar = enCompras && faltaCosto===0;
+  const botonAvance = enCompras
+    ? `<div style="margin:16px 0;padding:14px;border-radius:12px;background:rgba(34,211,154,.06);border:1px solid rgba(34,211,154,.25);">
+        <div style="font-size:11px;font-weight:900;color:#3fe0ad;letter-spacing:.5px;margin-bottom:8px;">AVANZAR EL FLUJO</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Cuando ya capturaste el costo real de todas las piezas, manda la orden a Reparación. Los archivos de factura los puedes subir después.</div>
+        <button class="btn-adv" ${puedeAvanzar?'':'disabled'} onclick="avanzarAReparacion('${id}')">Avanzar a REPARACIÓN →</button>
+        ${puedeAvanzar?'':'<div style="font-size:11px;color:#ffd75e;margin-top:8px;">Captura primero el costo final de todas las piezas.</div>'}
+      </div>`
+    : '';
+
   const totalCotizado = misRefs.reduce((a,r)=>a+(r.costo||0)*(r.cantidad||1),0);
   const totalReal = misRefs.reduce((a,r)=>a+((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1),0);
 
@@ -476,17 +508,18 @@ function abrir(id){
     ${alerta}
     <div class="info">
       <div><div class="l">COT</div><div class="vv">${s.cot||'—'}</div></div>
+      <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
       <div><div class="l">Plaza</div><div class="vv">${s.plaza||'—'}</div></div>
-      <div><div class="l">Estatus</div><div class="vv">${s.estatus||'—'}</div></div>
-      <div><div class="l">Diagnóstico</div><div class="vv" style="font-size:12px;">${s.diagnosticos||'—'}</div></div>
+      <div><div class="l">Estatus</div><div class="vv">${NUM[s.estatus]}. ${CORTO[s.estatus]}</div></div>
     </div>
-    <div class="sect-h">Refacciones — costo final y facturas</div>
+    <div class="sect-h">Refacciones — costo real y archivos</div>
     ${refsHtml}
+    ${botonAvance}
     <div class="money" style="grid-template-columns:1fr 1fr;">
-      <div class="mbox"><div class="ml">Costo cotizado (cliente)</div><div class="mv">${fmt(totalCotizado)}</div></div>
-      <div class="mbox tot"><div class="ml">Costo real (interno)</div><div class="mv">${fmt(totalReal)}</div></div>
+      <div class="mbox"><div class="ml">Costo cotizado</div><div class="mv">${fmt(totalCotizado)}</div></div>
+      <div class="mbox tot"><div class="ml">Costo real pagado</div><div class="mv">${fmt(totalReal)}</div></div>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-top:6px;">El costo real es solo informativo. No modifica lo que se le cotizó al cliente.</div>`;
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">El costo real es solo interno. No modifica lo que se le cotizó al cliente.</div>`;
   p.classList.add('open');
 }
 
@@ -497,14 +530,19 @@ function comprimir(file){ return new Promise(res=>{ const img=new Image(),u=URL.
   img.onload=()=>{ const max=1400; let{width:w,height:h}=img; if(w>h&&w>max){h=h*max/w;w=max;}else if(h>max){w=w*max/h;h=max;}
     const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(u);c.toBlob(b=>res(b),'image/jpeg',0.75); };
   img.onerror=()=>res(file); img.src=u; }); }
+async function registrarHistorial(servId, accion){
+  try{ await sb.from('tm_historial').insert({servicio_id:servId, estatus:accion, usuario:(profile&&profile.nombre)||'Compras', fecha:new Date().toISOString()}); }catch(e){}
+}
 async function guardarCostoFinal(refId){
   const inp=document.getElementById('cf-'+refId);
   const v=inp?inp.value.trim():'';
-  if(v==='' ){ alert('Escribe el costo final de la refacción.'); return; }
+  if(v===''){ alert('Escribe el costo final de la refacción.'); return; }
   const costo=parseFloat(v);
   if(isNaN(costo)||costo<0){ alert('El costo final debe ser un número válido (no negativo).'); return; }
   const { error }=await sb.from('tm_refacciones').update({costo_final:costo}).eq('id',refId);
   if(error){ alert('No se pudo guardar: '+error.message); return; }
+  const r=refs.find(x=>x.id===refId);
+  if(r) await registrarHistorial(r.servicio_id, 'Compras capturó costo real: '+(r.descripcion||'pieza')+' — $'+costo.toFixed(2));
   await cargarTodo(); if(activeId) abrir(activeId);
 }
 async function subirFactRef(servId, refId, tipo, input){
@@ -514,20 +552,32 @@ async function subirFactRef(servId, refId, tipo, input){
   cont.innerHTML='<span class="spin"></span> Subiendo...';
   try{
     const evTipo='factura_refaccion_'+tipo+'_'+refId;
-    const ext=tipo==='pdf'?'pdf':'xml';
+    // Se acepta cualquier tipo de archivo: se conserva su extensión original
+    const punto=f.name.lastIndexOf('.');
+    const ext=(punto>0? f.name.slice(punto+1) : 'dat').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8) || 'dat';
     const path=`${servId}/${evTipo}.${ext}`;
-    const ct=tipo==='pdf'?'application/pdf':'application/xml';
-    const { error:eu }=await sb.storage.from('tm-evidencias').upload(path,f,{upsert:true,contentType:ct});
+    const { error:eu }=await sb.storage.from('tm-evidencias').upload(path,f,{upsert:true,contentType:f.type||'application/octet-stream'});
     if(eu) throw eu;
     const { data:{ publicUrl } }=sb.storage.from('tm-evidencias').getPublicUrl(path);
     const url=publicUrl+'?v='+Date.now();
     const ya=evis.find(e=>e.servicio_id===servId&&e.tipo===evTipo);
     if(ya) await sb.from('tm_evidencias').update({url}).eq('id',ya.id);
     else await sb.from('tm_evidencias').insert({servicio_id:servId,tipo:evTipo,url});
+    const r=refs.find(x=>x.id===refId);
+    await registrarHistorial(servId, 'Compras subió archivo de factura: '+((r&&r.descripcion)||'pieza'));
     await cargarTodo(); if(activeId) abrir(activeId);
   }catch(e){ alert('Error al subir: '+(e.message||e)); cont.innerHTML=original; }
 }
-
+async function avanzarAReparacion(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const pendientes=refsDe(id).filter(r=>!r.es_adicional && r.costo_final==null).length;
+  if(pendientes){ alert('Falta capturar el costo final de '+pendientes+' refacción(es).'); return; }
+  if(!confirm('¿Mandar la orden '+(s.economico||'')+' a REPARACIÓN?\n\nLos archivos de factura los puedes subir después: la orden seguirá apareciendo en tu panel hasta que estén completos.')) return;
+  const { error }=await sb.from('tm_servicios').update({estatus:'Reparado'}).eq('id',id);
+  if(error){ alert('No se pudo avanzar: '+error.message); return; }
+  await registrarHistorial(id, 'Compras avanzó la orden a Reparación');
+  await cargarTodo(); if(activeId) abrir(activeId);
+}
 function exportarExcel(){
   const fp=document.getElementById('f-plaza').value, fe=document.getElementById('f-est').value;
   const fb=(document.getElementById('f-buscar').value||'').trim().toLowerCase();

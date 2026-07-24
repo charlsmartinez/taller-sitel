@@ -250,6 +250,7 @@ const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,ma
 const norm=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 
 let profile=null, servicios=[], refs=[], evis=[], hist=[], activeId=null, filtroPaso='Todos';
+let CFG={markup_piezas:1.20, markup_electrico:1.30, iva:0.16};
 
 async function login(){
   const email=document.getElementById('l-email').value.trim(), pass=document.getElementById('l-pass').value;
@@ -297,6 +298,14 @@ async function cargarTodo(){
     fetchAll(()=>sb.from('tm_historial').select('*').order('fecha',{ascending:true}))
   ]);
   servicios=s.data||[]; refs=r.data||[]; evis=e.data||[]; hist=h.data||[];
+  try{
+    const { data:cfg }=await sb.from('tm_config').select('*');
+    (cfg||[]).forEach(c=>{
+      if(c.clave==='markup_piezas')   CFG.markup_piezas=parseFloat(c.valor)||1.20;
+      if(c.clave==='markup_electrico')CFG.markup_electrico=parseFloat(c.valor)||1.30;
+      if(c.clave==='iva')             CFG.iva=parseFloat(c.valor)||0.16;
+    });
+  }catch(e){}
   render(); if(activeId) abrir(activeId);
 }
 function suscribir(){
@@ -311,13 +320,36 @@ const esFoto=u=>['jpg','jpeg','png','webp','gif','heic'].includes(extDe(u));
 const ICONO={html:'📄',pdf:'📕',xml:'🧾',xlsx:'📊'};
 const iconoDe=u=>ICONO[extDe(u)]||'📎';
 const evisDe=id=>evis.filter(e=>e.servicio_id===id);
+// Aumento por pieza: mecánica 20% · eléctrica 30%
+function markupDe(r){ return (r && r.tipo_pieza==='electrica') ? (CFG.markup_electrico||1.30) : (CFG.markup_piezas||1.20); }
+
 function totales(s){
   const lines=refsDe(s.id);
-  const costo = lines.length ? lines.reduce((a,p)=>a+(p.cantidad||0)*(p.costo||0),0) : Number(s.costo_total)||0;
+  const cotizadas  = lines.filter(p=>!p.es_adicional);   // lo que se le factura a Telmex
+  const adicionales= lines.filter(p=>p.es_adicional);    // NUNCA entran a la factura
+
+  const costo = s.nuevo_flujo===false ? (Number(s.costo_total)||0)
+              : cotizadas.reduce((a,p)=>a+(p.cantidad||0)*(p.costo||0),0);
   const mo = Number(s.mano_obra)||0;
-  const piezasCliente = s.nuevo_flujo===false ? (Number(s.venta_total)||0)-mo : Math.round(costo*1.18*100)/100;
-  const total = s.nuevo_flujo===false ? (Number(s.venta_total)||0) : piezasCliente+mo;
-  return { costo, mo, piezasCliente, total, utilidad: total-costo };
+
+  // Piezas cotizadas YA con su aumento (esto es lo que se factura)
+  const piezasCotizadas = s.nuevo_flujo===false
+      ? Math.max((Number(s.venta_total)||0)-mo,0)
+      : Math.round(cotizadas.reduce((a,p)=>a+(p.cantidad||0)*(p.costo||0)*markupDe(p),0)*100)/100;
+
+  const subtotal = Math.round((piezasCotizadas+mo)*100)/100;
+  const iva      = Math.round(subtotal*(CFG.iva||0.16)*100)/100;
+  const total    = Math.round((subtotal+iva)*100)/100;   // Cotización enviada a Telmex
+
+  // Bloque interno (no se factura)
+  const piezasCompradas = Math.round(cotizadas.reduce((a,p)=>a+(p.cantidad||0)*((p.costo_final!=null?p.costo_final:p.costo)||0),0)*100)/100;
+  const piezasAdicional = Math.round(adicionales.reduce((a,p)=>a+(p.cantidad||0)*((p.costo_final!=null?p.costo_final:p.costo)||0),0)*100)/100;
+  const piezasTotal     = Math.round((piezasCompradas+piezasAdicional)*100)/100;
+  const utilidad        = Math.round((total-piezasTotal)*100)/100;
+
+  return { costo, mo, piezasCliente:piezasCotizadas, piezasCotizadas, subtotal, iva, total,
+           piezasCompradas, piezasAdicional, piezasTotal, utilidad,
+           hayAdicionales: adicionales.length>0 };
 }
 function setPaso(p){ filtroPaso=p; document.getElementById('f-est').value = (p==='Todos'?'Todos':p); render(); }
 
@@ -438,9 +470,15 @@ function abrir(id){
     formato_entrega_firmado:'formato firmado',identificacion_receptor:'identificación'};
   const galOtras=otras.map(k=>gitemC(k, NOMB[k] || k.replace('entrega_','entrega ').replace('extra_','extra ').replace('pieza_','pieza '))).join('');
 
-  const partsRows=refsDe(id).map(r=>`<tr><td>${r.descripcion||''}</td><td style="text-align:center;">${r.cantidad}</td>
-    <td style="text-align:right;">${fmt(r.costo)}</td><td style="text-align:right;color:var(--gold);font-weight:700;">${fmt((r.cantidad||0)*(r.precio||0))}</td></tr>`).join('')
-    ||'<tr><td colspan="4" style="color:#8b93b8;">Sin refacciones registradas.</td></tr>';
+  const partsRows=refsDe(id).map(r=>{
+    const elec = r.tipo_pieza==='electrica';
+    const pcli = r.es_adicional ? 0 : Math.round((r.cantidad||0)*(r.costo||0)*markupDe(r)*100)/100;
+    return `<tr${r.es_adicional?' style="opacity:.75;"':''}><td>${r.descripcion||''}${r.es_adicional?'<span style="font-size:10px;color:#ffb84d;font-weight:800;"> · adicional (no se factura)</span>':''}</td>
+    <td style="text-align:center;">${r.cantidad}</td>
+    <td style="text-align:center;font-size:10.5px;font-weight:700;color:${elec?'#c4a7ff':'#8fb0ff'};">${elec?'Eléctrica 30%':'Mecánica 20%'}</td>
+    <td style="text-align:right;">${fmt(r.costo)}</td>
+    <td style="text-align:right;color:var(--gold);font-weight:700;">${r.es_adicional?'—':fmt(pcli)}</td></tr>`;}).join('')
+    ||'<tr><td colspan="5" style="color:#8b93b8;">Sin refacciones registradas.</td></tr>';
 
   let accion='';
   // El paso 11 lo mueve el generalista, PERO la factura (PDF y XML) la sube contabilidad
@@ -505,15 +543,28 @@ function abrir(id){
       <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
     </div>
     <div class="sect-h">Desglose de la orden</div>
-    <table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:right;">Costo</th><th style="text-align:right;">Cliente (+18%)</th></tr></thead><tbody>${partsRows}</tbody></table>
-    <div class="money">
-      <div class="mbox"><div class="ml">Costo piezas</div><div class="mv">${fmt(t.costo)}</div></div>
-      <div class="mbox"><div class="ml">Piezas +18%</div><div class="mv">${fmt(t.piezasCliente)}</div></div>
-      <div class="mbox"><div class="ml">Mano de obra</div><div class="mv">${fmt(t.mo)}</div></div>
-      <div class="mbox tot"><div class="ml">Total al cliente</div><div class="mv">${fmt(t.total)}</div></div>
+    <table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:center;">Tipo</th><th style="text-align:right;">Costo</th><th style="text-align:right;">Precio cliente</th></tr></thead><tbody>${partsRows}</tbody></table>
+
+    <div style="margin-top:16px;padding:12px 14px;border-radius:12px;background:rgba(34,211,154,.06);border:1px solid rgba(34,211,154,.25);">
+      <div style="font-size:11px;font-weight:900;color:#3fe0ad;letter-spacing:.5px;margin-bottom:10px;">🧾 LO QUE SE FACTURA A TELMEX &nbsp;·&nbsp; no cambia</div>
+      <div class="money" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+        <div class="mbox"><div class="ml">Costo piezas cotizadas</div><div class="mv">${fmt(t.piezasCotizadas)}</div></div>
+        <div class="mbox"><div class="ml">Mano de obra</div><div class="mv">${fmt(t.mo)}</div></div>
+        <div class="mbox"><div class="ml">IVA</div><div class="mv">${fmt(t.iva)}</div></div>
+        <div class="mbox tot"><div class="ml">Cotización enviada a Telmex</div><div class="mv">${fmt(t.total)}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Las refacciones adicionales <b>no entran</b> en este bloque: no se le facturan al cliente.</div>
     </div>
-    <div class="money" style="grid-template-columns:1fr;">
-      <div class="mbox util"><div class="ml">Utilidad bruta de esta orden</div><div class="mv">${fmt(t.utilidad)}</div></div>
+
+    <div style="margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(245,184,0,.06);border:1px solid rgba(245,184,0,.25);">
+      <div style="font-size:11px;font-weight:900;color:#ffd75e;letter-spacing:.5px;margin-bottom:10px;">💼 CONTROL INTERNO &nbsp;·&nbsp; costo real de las piezas</div>
+      <div class="money" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+        <div class="mbox"><div class="ml">Costo piezas compradas</div><div class="mv">${fmt(t.piezasCompradas)}</div></div>
+        <div class="mbox"><div class="ml">Costo piezas adicionales</div><div class="mv">${fmt(t.piezasAdicional)}</div></div>
+        <div class="mbox"><div class="ml">Costo piezas total</div><div class="mv">${fmt(t.piezasTotal)}</div></div>
+        <div class="mbox util"><div class="ml">Utilidad</div><div class="mv">${fmt(t.utilidad)}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Sirve para ver las piezas que cambiaron de costo durante el proceso. No afecta la factura.</div>
     </div>
     ${galFact?`<div class="sect-h">Documentos de facturación</div><div class="gal">${galFact}</div>`:''}
     ${galOtras?`<div class="sect-h">Documentos de la orden</div><div class="gal">${galOtras}</div>`:''}
@@ -587,15 +638,22 @@ function exportarExcel(){
   }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
   if(!rows.length){ alert('No hay registros que exportar.'); return; }
   const he=v=>(v===undefined||v===null?'':v.toString()).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const headers=['ECONOMICO','OT','COT','PLAZA','VEHICULO','PLACAS','No. FACTURA','FECHA FACTURA','FECHA PAGO','ETAPA','COSTO PIEZAS','PIEZAS +18%','MANO DE OBRA','TOTAL CLIENTE','UTILIDAD'];
-  let tc=0,tp=0,tm=0,tv=0,tu=0,body='';
+  const headers=['ECONOMICO','OT','COT','PLAZA','VEHICULO','PLACAS','No. FACTURA','FECHA FACTURA','FECHA PAGO','IMPORTE PAGADO','ETAPA',
+                 'COSTO PIEZAS COTIZADAS','MANO DE OBRA','IVA','COTIZACION ENVIADA A TELMEX',
+                 'COSTO PIEZAS COMPRADAS','COSTO PIEZAS ADICIONALES','COSTO PIEZAS TOTAL','UTILIDAD'];
+  let t1=0,t2=0,t3=0,t4=0,t5=0,t6=0,t7=0,t8=0,body='';
   rows.forEach(s=>{
-    const t=totales(s); tc+=t.costo; tp+=t.piezasCliente; tm+=t.mo; tv+=t.total; tu+=t.utilidad;
-    const c=[s.economico,s.ot,s.cot,s.plaza,s.vehiculo,s.placas,s.num_factura,s.fecha_factura,s.fecha_pago,NUM[s.estatus]+'. '+s.estatus,t.costo.toFixed(2),t.piezasCliente.toFixed(2),t.mo.toFixed(2),t.total.toFixed(2),t.utilidad.toFixed(2)];
+    const t=totales(s);
+    t1+=t.piezasCotizadas; t2+=t.mo; t3+=t.iva; t4+=t.total;
+    t5+=t.piezasCompradas; t6+=t.piezasAdicional; t7+=t.piezasTotal; t8+=t.utilidad;
+    const c=[s.economico,s.ot,s.cot,s.plaza,s.vehiculo,s.placas,s.num_factura,s.fecha_factura,s.fecha_pago,
+             (s.importe_pagado!=null?Number(s.importe_pagado).toFixed(2):''),NUM[s.estatus]+'. '+s.estatus,
+             t.piezasCotizadas.toFixed(2),t.mo.toFixed(2),t.iva.toFixed(2),t.total.toFixed(2),
+             t.piezasCompradas.toFixed(2),t.piezasAdicional.toFixed(2),t.piezasTotal.toFixed(2),t.utilidad.toFixed(2)];
     body+='<tr>'+c.map(x=>`<td style="border:1px solid #cfd6e4;padding:5px 7px;mso-number-format:'\\@';">${he(x)}</td>`).join('')+'</tr>';
   });
-  const tot=`<tr><td colspan="10" style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;text-align:right;background:#fff4d6;">TOTALES — ${rows.length} órdenes</td>
-    ${[tc,tp,tm,tv,tu].map(v=>`<td style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;background:#fff4d6;">${v.toFixed(2)}</td>`).join('')}</tr>`;
+  const tot=`<tr><td colspan="11" style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;text-align:right;background:#fff4d6;">TOTALES — ${rows.length} órdenes</td>
+    ${[t1,t2,t3,t4,t5,t6,t7,t8].map(v=>`<td style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;background:#fff4d6;">${v.toFixed(2)}</td>`).join('')}</tr>`;
   const hh=headers.map(h=>`<th style="background:#2a1c00;color:#f5b800;border:1px solid #2a1c00;padding:7px;font-size:11px;text-align:left;white-space:nowrap;">${he(h)}</th>`).join('');
   const table=`<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;"><tr><td colspan="${headers.length}" style="background:#1f2340;color:#fff;padding:10px;font-size:15px;font-weight:bold;">SITEL AUTOMOTRIZ &mdash; Reporte de Contabilidad &nbsp;|&nbsp; ${he(fp==='Todos'?'Todas las plazas':fp)} &nbsp;|&nbsp; ${new Date().toLocaleDateString('es-MX')}</td></tr><tr>${hh}</tr>${body}${tot}</table>`;
   const blob=new Blob(['\uFEFF<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>'+table+'</body></html>'],{type:'application/vnd.ms-excel;charset=utf-8;'});

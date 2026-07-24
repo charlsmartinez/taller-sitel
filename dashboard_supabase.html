@@ -247,6 +247,11 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="board-top">
         <select id="f-plaza" onchange="render()"><option value="Todos">📍 Todas las Plazas</option></select>
         <select id="f-est" onchange="grupoActivo=null; render()"><option value="Todos">Todos los estatus</option></select>
+        <select id="f-compras" onchange="render()" style="display:none;">
+          <option value="Todos">📎 Compras: todas</option>
+          <option value="pend">⏳ Compras: faltan archivos</option>
+          <option value="ok">✅ Compras: archivos completos</option>
+        </select>
         <input type="text" id="f-buscar" placeholder="🔎 Buscar económico, serie, placas, OT..." oninput="render()">
         <button onclick="exportarExcel()" style="margin-bottom:0;background:linear-gradient(135deg,#0e9f6e,#22d39a);color:#04331f;border:none;border-radius:10px;font-weight:800;cursor:pointer;padding:9px 16px;">📊 Exportar Excel</button>
       </div>
@@ -293,7 +298,9 @@ const PIPELINE=[
  'Compra de Refacciones y Reparación','Reparado','Pendiente de OT','Auto Entregado',
  'Pendiente de Factura','Contabilidad Emitió Factura',
  'Se Envía Factura a Telmex','Factura Pagada'];
-const CORTO=['Diagnóstico','Cotización','Autorización','Compras','Reparación','Pend. de OT','Entregado','Pend. Factura','Factura Emitida','Factura enviada TMX','Pagada'];
+const NUM_PASO={};
+const CORTO=['Diagnóstico','Cotización','Autorización','Compras','Reparación','Pendiente de OT','Entregar auto','Pendiente factura','Factura emitida','Factura enviada a TMX','Factura pagada'];
+PIPELINE.forEach((e,i)=>{ NUM_PASO[e]=(i+1)+'.'; });
 const ESPECIALES=['No Autorizado / Rechazado','Garantía'];
 // Candados: estatus destino -> evidencias requeridas
 // La evidencia de cada paso se sube ESTANDO en ese paso y habilita el siguiente.
@@ -314,12 +321,12 @@ const MULTI=['ticket_compra','refacciones_usadas','refacciones_compradas','refac
 // Campos con valor propio en el paso 5
 const TIPO_REPARACION=['Local','Externo'];
 // Textos de los botones de avance
-const ETIQ_C={ot:'Número de OT', fecha_pago:'Fecha de pago', num_factura:'Número de factura', fecha_factura:'Fecha de la factura'};
+const ETIQ_C={ot:'Número de OT', fecha_pago:'Fecha de pago', importe_pagado:'Importe pagado en la factura', num_factura:'Número de factura', fecha_factura:'Fecha de la factura'};
 const TXT_BTN={
   'Autorizado':'Avanzar a Autorización',
   'Compra de Refacciones y Reparación':'Avanzar a COMPRAS',
   'Reparado':'Avanzar a REPARACIÓN',
-  'Auto Entregado':'Avanzar a entregar auto',
+  'Auto Entregado':'Entregar auto',
   'Se Envía Factura a Telmex':'Factura enviada',
   'Factura Pagada':'Cerrar: factura pagada'
 };
@@ -348,7 +355,7 @@ const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  entrega_frontal:'unidad lista: frontal',entrega_lateralDer:'unidad lista: lateral der.',entrega_lateralIzq:'unidad lista: lateral izq.',
  entrega_trasera:'unidad lista: trasera',entrega_tablero:'unidad lista: tablero',entrega_motor:'unidad lista: motor',entrega_odometro:'unidad lista: odómetro'};
 // Campos requeridos por paso
-const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // OT capturable desde paso 4; si ya está, no se vuelve a pedir
+const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago','importe_pagado']};  // OT capturable desde paso 4; si ya está, no se vuelve a pedir
 const COLOR={'Diagnóstico':'#f5b800','Cotización':'#ff9800','Autorizado':'#3b82f6',
  'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899',
  'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9',
@@ -514,33 +521,58 @@ function alertaAutorizacion(s){
   return { dias:d, cobro: Math.round(mo*0.5*100)/100 };
 }
 const evisDe=id=>evis.filter(e=>e.servicio_id===id);
-let CFG={markup_piezas:1.20, iva:0.16, vigencia_dias:15};
+let CFG={markup_piezas:1.20, markup_electrico:1.30, iva:0.16, vigencia_dias:15};
 async function cargarConfig(){
   const {data}=await sb.from('tm_config').select('clave,valor');
   if(data) data.forEach(c=>{ CFG[c.clave]=Number(c.valor); });
 }
+// Aumento por pieza: mecánica 20% · eléctrica 30%
+function markupDe(r){ return (r && r.tipo_pieza==='electrica') ? (CFG.markup_electrico||1.30) : (CFG.markup_piezas||1.20); }
+function precioCliente(r){ return Math.round((r.cantidad||0)*(r.costo||0)*markupDe(r)*100)/100; }
+
 function totales(s){
   const lines=refsDe(s.id);
-  // Refacciones cotizadas (las que ve el cliente) vs adicionales (solo internas)
   const cotizadas = lines.filter(p=>!p.es_adicional);
   const adicionales = lines.filter(p=>p.es_adicional);
-  // Costo cotizado: base del precio al cliente (NO incluye adicionales)
+
+  // Costo de las piezas cotizadas (sin aumento)
   const costo = s.nuevo_flujo===false ? (Number(s.costo_total)||0)
               : (cotizadas.length ? cotizadas.reduce((a,p)=>a+(p.cantidad||0)*(p.costo||0),0) : Number(s.costo_total)||0);
   const mo = Number(s.mano_obra)||0;
-  const piezasCliente = s.nuevo_flujo===false ? (Number(s.venta_total)||0)-mo : Math.round(costo*CFG.markup_piezas*100)/100;
-  const subtotal = s.nuevo_flujo===false ? (Number(s.venta_total)||0) : piezasCliente+mo;
+
+  // Precio de piezas al cliente: cada pieza con su aumento según sea mecánica o eléctrica
+  const piezasCliente = s.nuevo_flujo===false
+      ? (Number(s.venta_total)||0)-mo
+      : Math.round(cotizadas.reduce((a,p)=>a+precioCliente(p),0)*100)/100;
+
+  const subtotal = s.nuevo_flujo===false ? (Number(s.venta_total)||0) : Math.round((piezasCliente+mo)*100)/100;
   const iva = Math.round(subtotal*CFG.iva*100)/100;
   const total = Math.round((subtotal+iva)*100)/100;
-  // Costo interno REAL: usa costo_final si existe, e incluye las adicionales
-  const costoRealCotizadas = cotizadas.reduce((a,p)=>a+(p.cantidad||0)*((p.costo_final!=null?p.costo_final:p.costo)||0),0);
-  const costoAdicionales = adicionales.reduce((a,p)=>a+(p.cantidad||0)*((p.costo_final!=null?p.costo_final:p.costo)||0),0);
-  const costoRealInterno = (s.nuevo_flujo===false ? costo : costoRealCotizadas) + costoAdicionales;
-  const totalInterno = Math.round((costoRealInterno + mo)*100)/100; // lo que a nosotros nos costó + mano de obra
-  return { costo, mo, piezasCliente, subtotal, iva, total, utilidad: subtotal-costo,
-           costoRealInterno, costoAdicionales, totalInterno, hayAdicionales: adicionales.length>0 };
+
+  // Interno: costo real pagado (usa costo_final si Compras ya lo capturó)
+  const costoRealCotizadas = Math.round(cotizadas.reduce((a,p)=>a+(p.cantidad||0)*((p.costo_final!=null?p.costo_final:p.costo)||0),0)*100)/100;
+  const costoAdicionales   = Math.round(adicionales.reduce((a,p)=>a+(p.cantidad||0)*((p.costo_final!=null?p.costo_final:p.costo)||0),0)*100)/100;
+  const costoRealInterno   = Math.round(((s.nuevo_flujo===false ? costo : costoRealCotizadas) + costoAdicionales)*100)/100;
+  const totalInterno       = costoRealInterno; // costo real de piezas + adicionales (la mano de obra ya va en la cotización)
+  const utilidad           = Math.round((total - costoRealInterno)*100)/100;
+
+  return { costo, mo, piezasCliente, subtotal, iva, total,
+           costoRealCotizadas, costoAdicionales, costoRealInterno, totalInterno,
+           utilidad, hayAdicionales: adicionales.length>0 };
 }
 
+// Estado de los archivos que sube Compras (para que el admin supervise)
+function estadoCompras(sid){
+  const rs=refsDe(sid);
+  if(!rs.length) return 'ok';
+  const falta=rs.some(r=>{
+    if(r.requiere_factura===false) return false;
+    const pdf=evis.some(e=>e.servicio_id===sid && e.tipo==='factura_refaccion_pdf_'+r.id);
+    const xml=evis.some(e=>e.servicio_id===sid && e.tipo==='factura_refaccion_xml_'+r.id);
+    return !pdf||!xml;
+  });
+  return falta?'pend':'ok';
+}
 function limpiarFiltros(){
   grupoActivo=null;
   document.getElementById('f-plaza').value='Todos';
@@ -587,11 +619,18 @@ function render(){
     if(el) el.classList.toggle('activo', grupoActivo===g);
   });
 
+  // El filtro de archivos de Compras solo lo ve el administrador o la gerencia
+  const selC=document.getElementById('f-compras');
+  const esJefe = profile && (profile.rol==='admin' || profile.rol==='gerente');
+  if(selC) selC.style.display = esJefe ? '' : 'none';
+  const fcom = (esJefe && selC) ? selC.value : 'Todos';
+
   const rows=plazaSet.filter(s=>{
     const mG=!grupoActivo||GRUPOS[grupoActivo].estatus.includes(s.estatus);
     const mE=fe==='Todos'||s.estatus===fe;
+    const mC=fcom==='Todos'|| (s.nuevo_flujo!==false && estadoCompras(s.id)===fcom);
     const blob=[s.economico,s.ot,s.cot,s.serie,s.placas,s.vehiculo,s.conductor].join(' ').toLowerCase();
-    return mG&&mE&&(!fb||blob.includes(fb));
+    return mG&&mE&&mC&&(!fb||blob.includes(fb));
   }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
 
   const tb=document.getElementById('tbody'); tb.innerHTML='';
@@ -703,17 +742,28 @@ function abrir(id){
   };
   const grupo=(titulo,arr,cls)=>{ const g=arr.map(k=>gitem(k,cls)).filter(Boolean).join(''); return g?`<div class="sect-h">${titulo}</div><div class="gal">${g}</div>`:''; };
 
-  // Refacciones editables
+  // Refacciones: solo se editan hasta el paso 4. Desde Reparación quedan cerradas.
   const lines=refsDe(id);
   const provOpts = proveedores.filter(p=>norm(p.plaza)===norm(s.plaza)).map(p=>p.nombre);
-  let partsRows=lines.map(r=>`<tr>
-    <td>${r.descripcion||''}</td>
+  const idxRep = PIPELINE.indexOf('Reparado');
+  const refsCerradas = idx >= idxRep;              // desde el paso 5 ya no se tocan
+  const editRef = editable && !refsCerradas;       // permiso real para editar refacciones
+  const TIPO_TXT = {mecanica:'Mecánica', electrica:'Eléctrica'};
+  let partsRows=lines.map(r=>{
+    const tp = r.tipo_pieza==='electrica' ? 'electrica' : 'mecanica';
+    const pct = Math.round((markupDe(r)-1)*100);
+    const chipTipo = editRef
+      ? `<button class="btn-sm" style="padding:4px 10px;font-size:10.5px;font-weight:800;${tp==='electrica'?'background:rgba(167,123,255,.16);color:#c4a7ff;border-color:rgba(167,123,255,.45);':'background:rgba(95,139,255,.14);color:#8fb0ff;border-color:rgba(95,139,255,.4);'}" onclick="toggleTipoPieza('${r.id}')" title="Cambiar entre mecánica (20%) y eléctrica (30%)">${TIPO_TXT[tp]} ${pct}%</button>`
+      : `<span style="font-size:10.5px;font-weight:700;color:${tp==='electrica'?'#c4a7ff':'#8fb0ff'};">${TIPO_TXT[tp]} ${pct}%</span>`;
+    return `<tr>
+    <td>${r.descripcion||''}${r.es_adicional?'<span style="font-size:10px;color:#ffb84d;font-weight:800;"> · adicional</span>':''}</td>
     <td style="text-align:center;">${r.cantidad}</td>
-    <td>${editable?`<input list="prov-list" id="prov-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:150px;font-size:11.5px;">`:(r.proveedor||'—')}</td>
-    <td style="text-align:right;">${editable?`<input type="number" step="0.01" id="costo-${r.id}" value="${r.costo||0}" style="width:92px;text-align:right;">`:fmt(r.costo)}</td>
-    <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${fmt((r.cantidad||0)*(r.precio||0))}</td>
-    ${editable?`<td style="text-align:center;white-space:nowrap;"><button class="btn-sm" id="gr-${r.id}" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;margin-right:5px;" onclick="guardarRef('${r.id}')">Guardar</button><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:''}</tr>`).join('')
-    ||`<tr><td colspan="6" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
+    <td style="text-align:center;">${chipTipo}</td>
+    <td>${editRef?`<input list="prov-list" id="prov-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:140px;font-size:11.5px;">`:(r.proveedor||'—')}</td>
+    <td style="text-align:right;">${editRef?`<input type="number" step="0.01" id="costo-${r.id}" value="${r.costo||0}" style="width:92px;text-align:right;">`:fmt(r.costo)}</td>
+    <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${fmt(precioCliente(r))}</td>
+    ${editRef?`<td style="text-align:center;white-space:nowrap;"><button class="btn-sm" id="gr-${r.id}" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;margin-right:5px;" onclick="guardarRef('${r.id}')">Guardar</button><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:(editable?'<td></td>':'')}</tr>`;}).join('')
+    ||`<tr><td colspan="7" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
   const datalistProv = `<datalist id="prov-list">${provOpts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
 
   // Mano de obra sugerida
@@ -738,7 +788,7 @@ function abrir(id){
       <span style="font-size:12px;color:#cdd3ee;margin-left:8px;">Sigue el flujo normal, sin evidencias obligatorias.</span></div>
       ${editable?`<button class="btn-sm" onclick="quitarGarantia('${id}')">Quitar garantía</button>`:''}</div>` : '';
 
-  const repBox = (s.estatus==='Compra de Refacciones y Reparación' && editable) ? `
+  const repBox = (s.estatus==='Reparado' && editable) ? `
     <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:11px 15px;margin-bottom:12px;">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:800;margin-bottom:7px;">Tipo de reparación</div>
       <div style="display:flex;gap:8px;">${TIPO_REPARACION.map(t=>`<button class="btn-sm" style="${s.tipo_reparacion===t?'background:var(--cyan);color:#04202a;border-color:var(--cyan);':''}" onclick="setTipoReparacion('${id}','${t}')">${t}</button>`).join('')}</div>
@@ -762,11 +812,15 @@ function abrir(id){
     : !puedeAvanzarA(next) ? `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;">Siguiente paso: <b>${nomPaso(next)}</b> — lo realiza Contabilidad.</div>`
     : ((faltanEv.length||faltanCampos.length||pendientes.length)
         ? `<div class="gate">Estás en <b>${nomPaso(s.estatus)}</b>. Para cerrar este paso y pasar a <b>${nomPaso(next)}</b> falta: ${[...faltanCampos.map(c=>c.toUpperCase()),...faltanEv.map(g=>GNOM[g]||g),...pendientes].join(' · ')}.</div>`
-        + (editable?`<div class="upgrid">${faltanEv.map(g=>`<label class="up up-sm"><span>${MULTI.includes(g)?'📷+':'📷'} ${GNOM[g]||g}</span><input type="file" accept="image/*,application/pdf,.xml" ${MULTI.includes(g)?'multiple':''} onchange="subirGate('${id}','${g}',this)"></label>`).join('')}</div>`:'')
+        + (editable?`<div class="upgrid">${gate.map(g=>{
+            const listo=!!evT[g];
+            const okSt='border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
+            return `<label class="up up-sm" style="${listo?okSt:''}"><span>${listo?'✓':(MULTI.includes(g)?'📷+':'📷')} ${GNOM[g]||g}${listo?' · Guardado':''}</span><input type="file" accept="image/*,application/pdf,.xml" ${MULTI.includes(g)?'multiple':''} onchange="subirGate('${id}','${g}',this)"></label>`;
+          }).join('')}</div>`:'')
         + (editable&&faltanCampos.length?`<div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;align-items:flex-end;">${faltanCampos.map(c=>
             c.startsWith('fecha')
               ? `<div><label style="display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">${ETIQ_C[c]||c}</label><input type="date" id="cmp-${c}" value="${new Date().toISOString().slice(0,10)}" style="margin-bottom:0;color-scheme:dark;"></div>`
-              : `<div><label style="display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">${ETIQ_C[c]||c}</label><input type="text" id="cmp-${c}" placeholder="${ETIQ_C[c]||c}" style="margin-bottom:0;"></div>`
+              : `<div><label style="display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">${ETIQ_C[c]||c}</label><input type="${c==='importe_pagado'?'number':'text'}" ${c==='importe_pagado'?'step="0.01" min="0"':''} id="cmp-${c}" placeholder="${ETIQ_C[c]||c}" style="margin-bottom:0;"></div>`
           ).join('')}<button class="btn-sm" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`:'')
         : `<div class="gate ok">✓ Listo para avanzar a <b>${nomPaso(next)}</b>.</div>`));
 
@@ -815,13 +869,12 @@ function abrir(id){
           <button class="btn-sm" onclick="verFormatoCot('${id}')">👁️ Ver formato</button>
         </div>
       </div>`:''}
-    <div style="margin:14px 0;">${botones}</div>
-    <details class="det-orden" ${PIPELINE.indexOf(s.estatus)>=4?'':'open'}>
-    <summary>📋 Ver detalle de la orden</summary>
+    <div style="margin:14px 0;">${botones}${botonesEspecial}</div>
     <div class="info">
       <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
       <div><div class="l">COT</div><div class="vv">${s.cot||'—'}</div></div>
       <div><div class="l">Plaza</div><div class="vv">${s.plaza||'—'}</div></div>
+      <div><div class="l">COPE</div><div class="vv" style="font-size:11.5px;">${s.cope||'—'}</div></div>
       <div><div class="l">Marca / Modelo</div><div class="vv">${s.marca||'—'} ${s.modelo||''}</div></div>
       <div><div class="l">Año</div><div class="vv">${s.anio||'—'}</div></div>
       <div><div class="l">Placas</div><div class="vv">${s.placas||'—'}</div></div>
@@ -829,8 +882,10 @@ function abrir(id){
       <div><div class="l">Kilometraje</div><div class="vv">${s.kilometraje||'—'}</div></div>
       <div><div class="l">Mecánico</div><div class="vv">${s.mecanico||'—'}</div></div>
       <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
-      <div><div class="l">Estatus</div><div class="vv" style="color:${COLOR[s.estatus]||'#fff'};">${s.estatus}</div></div>
+      <div><div class="l">Estatus</div><div class="vv" style="color:${COLOR[s.estatus]||'#fff'};">${NUM_PASO[s.estatus]||''} ${nomPaso(s.estatus)}</div></div>
     </div>
+    <details class="det-orden" ${PIPELINE.indexOf(s.estatus)>=4?'':'open'}>
+    <summary>📋 Detalle de la orden e historial</summary>
     ${(()=>{const a=alertaAutorizacion(s); if(!a) return '';
       return `<div style="background:rgba(255,90,106,.1);border:1px solid rgba(255,90,106,.4);border-left:4px solid #ff5a6a;border-radius:10px;padding:13px 16px;margin-bottom:14px;">
         <div style="font-size:12px;font-weight:900;color:#ff5a6a;margin-bottom:5px;">⏰ NO AUTORIZADO — ${a.dias} DÍAS SIN RESPUESTA</div>
@@ -850,8 +905,9 @@ function abrir(id){
     </div>`:''}
 
     <div class="sect-h">Refacciones y costos</div>
-    ${datalistProv}<table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th>Proveedor</th><th style="text-align:right;">Costo nuestro</th><th style="text-align:right;">Precio cliente${s.nuevo_flujo===false?'':' (+'+Math.round((CFG.markup_piezas-1)*100)+'%)'}</th>${editable?'<th></th>':''}</tr></thead><tbody>${partsRows}</tbody></table>
-    ${editable?`<div style="display:grid;grid-template-columns:2fr 70px 100px 80px;gap:8px;margin-top:10px;">
+    ${datalistProv}<table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:center;">Tipo</th><th>Proveedor</th><th style="text-align:right;">Costo nuestro</th><th style="text-align:right;">Precio cliente</th>${editable?'<th></th>':''}</tr></thead><tbody>${partsRows}</tbody></table>
+    ${refsCerradas?'<div style="font-size:11px;color:var(--muted);margin-top:7px;">🔒 Las refacciones cotizadas ya no se modifican desde este paso. Si surge una pieza no contemplada, agrégala como <b>refacción adicional</b>.</div>':''}
+    ${editRef?`<div style="display:grid;grid-template-columns:2fr 70px 100px 80px;gap:8px;margin-top:10px;">
       <input type="text" id="nr-desc" placeholder="Nueva refacción" style="margin:0;">
       <input type="number" id="nr-cant" value="1" min="1" style="margin:0;">
       <input type="number" id="nr-costo" placeholder="Costo" step="0.01" style="margin:0;">
@@ -877,14 +933,14 @@ function abrir(id){
       <div class="mbox tot m-tot"><div class="ml">Total con IVA</div><div class="mv">${fmt(t.total)}</div></div>
     </div>
     ${(s.nuevo_flujo!==false && (t.hayAdicionales || t.costoRealInterno!==t.costo))?`<div style="margin-top:10px;background:rgba(95,139,255,.07);border:1px solid rgba(95,139,255,.3);border-left:4px solid #5f8bff;border-radius:10px;padding:12px 14px;">
-      <div style="font-size:11px;font-weight:900;color:#8fb0ff;margin-bottom:8px;letter-spacing:.5px;">💼 CONTROL INTERNO (no lo ve el cliente)</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+      <div style="font-size:11px;font-weight:900;color:#8fb0ff;margin-bottom:8px;letter-spacing:.5px;">💼 CONTROL INTERNO REFACCIONES (no lo ve el cliente)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
         <div><div style="font-size:10px;color:var(--muted);">Costo cotizado</div><div style="font-weight:800;">${fmt(t.costo)}</div></div>
-        <div><div style="font-size:10px;color:var(--muted);">Costo real (con final)</div><div style="font-weight:800;color:#8fb0ff;">${fmt(t.costoRealInterno)}</div></div>
-        ${t.hayAdicionales?`<div><div style="font-size:10px;color:#ffb84d;">De ello, adicionales</div><div style="font-weight:800;color:#ffb84d;">${fmt(t.costoAdicionales)}</div></div>`:''}
-        <div><div style="font-size:10px;color:var(--muted);">Costo + mano de obra</div><div style="font-weight:800;">${fmt(t.totalInterno)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);">Costo real</div><div style="font-weight:800;color:#8fb0ff;">${fmt(t.costoRealCotizadas)}</div></div>
+        <div><div style="font-size:10px;color:#ffb84d;">Adicionales</div><div style="font-weight:800;color:#ffb84d;">${fmt(t.costoAdicionales)}</div></div>
+        <div style="border-left:2px solid rgba(95,139,255,.35);padding-left:10px;"><div style="font-size:10px;color:var(--muted);">Total real + adicionales</div><div style="font-weight:900;color:#8fb0ff;font-size:15px;">${fmt(t.costoRealInterno)}</div></div>
       </div>
-      <div style="font-size:10.5px;color:var(--muted);margin-top:8px;">El cliente paga su cotización original (${fmt(t.total)} con IVA). Este bloque es solo para conocer el costo real de la orden.</div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:8px;">El cliente paga su cotización original (${fmt(t.total)} con IVA). Este bloque solo muestra lo que realmente costaron las piezas.</div>
     </div>`:''}
     ${grupo('Evidencia de recepción',ini)}
     ${grupo('Evidencia del proceso',proc)}
@@ -1287,9 +1343,19 @@ async function guardarOT(id){
 }
 async function guardarCampos(id,campos){
   const upd={}; let falta=false;
-  campos.forEach(c=>{ const v=document.getElementById('cmp-'+c).value.trim(); if(!v) falta=true; upd[c]=v; });
-  if(falta){ alert('Llena todos los campos.'); return; }
-  await sb.from('tm_servicios').update(upd).eq('id',id); await cargarTodo();
+  campos.forEach(c=>{
+    const v=document.getElementById('cmp-'+c).value.trim();
+    if(!v){ falta=true; return; }
+    if(c==='importe_pagado'){
+      const n=parseFloat(v);
+      if(isNaN(n)||n<0){ falta=true; return; }
+      upd[c]=n;
+    } else upd[c]=v;
+  });
+  if(falta){ alert('Llena todos los campos con datos válidos.'); return; }
+  const { error }=await sb.from('tm_servicios').update(upd).eq('id',id);
+  if(error){ alert('No se pudo guardar: '+error.message); return; }
+  await cargarTodo();
 }
 async function guardarRef(refId){
   const pi=document.getElementById('prov-'+refId), ci=document.getElementById('costo-'+refId);
@@ -1300,7 +1366,7 @@ async function guardarRef(refId){
   const {error}=await sb.from('tm_refacciones').update({proveedor:prov||null,costo:costo}).eq('id',refId);
   if(error){ alert('No se guardó: '+error.message); if(btn){btn.disabled=false;btn.textContent='Guardar';} return; }
   const r=refs.find(x=>x.id===refId);
-  if(r){ r.proveedor=prov; r.costo=costo; r.precio=Math.round(costo*CFG.markup_piezas*100)/100; }
+  if(r){ r.proveedor=prov; r.costo=costo; r.precio=Math.round(costo*markupDe(r)*100)/100; }
   refrescarTotales(activeId);
   if(btn){ btn.disabled=false; btn.textContent='✓ Guardado'; btn.style.background='#12a878';
     setTimeout(()=>{ btn.textContent='Guardar'; btn.style.background='linear-gradient(135deg,#22d39a,#12a878)'; },1400); }
@@ -1310,7 +1376,7 @@ async function setCosto(refId,val,el){
   const {error}=await sb.from('tm_refacciones').update({costo:v}).eq('id',refId);
   if(error){ alert('No se guardó: '+error.message); return; }
   const r=refs.find(x=>x.id===refId);
-  if(r){ r.costo=v; r.precio=Math.round(v*CFG.markup_piezas*100)/100; }
+  if(r){ r.costo=v; r.precio=Math.round(v*markupDe(r)*100)/100; }
   if(el){ el.classList.add('ok-flash'); setTimeout(()=>el.classList.remove('ok-flash'),900); }
   refrescarTotales(activeId);
 }
@@ -1343,6 +1409,14 @@ async function setMO(id,val){
   const mo=parseFloat(val)||0;
   if(mo<0){ alert('La mano de obra no puede ser negativa.'); return; }
   await sb.from('tm_servicios').update({mano_obra:mo}).eq('id',id); await cargarTodo();
+}
+async function toggleTipoPieza(refId){
+  const r=refs.find(x=>x.id===refId); if(!r) return;
+  const nuevo = (r.tipo_pieza==='electrica') ? 'mecanica' : 'electrica';
+  const { error }=await sb.from('tm_refacciones').update({tipo_pieza:nuevo}).eq('id',refId);
+  if(error){ alert('No se pudo cambiar el tipo de pieza: '+error.message); return; }
+  r.tipo_pieza=nuevo;
+  await cargarTodo(); if(activeId) abrir(activeId);
 }
 async function addRefAdicional(id){
   const d=document.getElementById('adc-desc').value.trim();
