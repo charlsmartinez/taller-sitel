@@ -932,7 +932,7 @@ function abrir(id){
       <div class="mbox m-iva"><div class="ml">IVA ${Math.round(CFG.iva*100)}%</div><div class="mv">${fmt(t.iva)}</div></div>
       <div class="mbox tot m-tot"><div class="ml">Total con IVA</div><div class="mv">${fmt(t.total)}</div></div>
     </div>
-    ${(s.nuevo_flujo!==false && (t.hayAdicionales || t.costoRealInterno!==t.costo))?`<div style="margin-top:10px;background:rgba(95,139,255,.07);border:1px solid rgba(95,139,255,.3);border-left:4px solid #5f8bff;border-radius:10px;padding:12px 14px;">
+    ${(s.nuevo_flujo!==false && idx>=PIPELINE.indexOf('Compra de Refacciones y Reparación'))?`<div style="margin-top:10px;background:rgba(95,139,255,.07);border:1px solid rgba(95,139,255,.3);border-left:4px solid #5f8bff;border-radius:10px;padding:12px 14px;">
       <div style="font-size:11px;font-weight:900;color:#8fb0ff;margin-bottom:8px;letter-spacing:.5px;">💼 CONTROL INTERNO REFACCIONES (no lo ve el cliente)</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
         <div><div style="font-size:10px;color:var(--muted);">Costo cotizado</div><div style="font-weight:800;">${fmt(t.costo)}</div></div>

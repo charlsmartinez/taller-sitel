@@ -231,8 +231,8 @@ const NUM={'Pendiente de Factura':9,'Contabilidad Emitió Factura':10,'Se Envía
 const CORTO={'Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada TMX','Factura Pagada':'Pagada'};
 const COLOR={'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#0e9f6e'};
 // Campos requeridos para avanzar
-const CAMPOS={'Contabilidad Emitió Factura':['num_factura','fecha_factura'],'Factura Pagada':['fecha_pago']};  // número y fecha al emitir; fecha de pago al cerrar
-const ETIQ={num_factura:'Número de factura',fecha_factura:'Fecha de factura',fecha_pago:'Fecha de pago'};
+const CAMPOS={'Contabilidad Emitió Factura':['num_factura','fecha_factura'],'Factura Pagada':['fecha_pago','importe_pagado']};  // número y fecha al emitir; fecha de pago al cerrar
+const ETIQ={num_factura:'Número de factura',fecha_factura:'Fecha de factura',fecha_pago:'Fecha de pago',importe_pagado:'Importe pagado en la factura'};
 // La evidencia se sube estando en el paso y habilita el siguiente.
 const GATES={
  'Contabilidad Emitió Factura':['factura_pdf','factura_xml'],  // del 9: contabilidad sube la factura
@@ -492,7 +492,7 @@ function abrir(id){
       if(faltanCampos.length){
         accion+=`<div class="frow">${faltanCampos.map(c=>c.startsWith('fecha')
           ? `<div><label>${ETIQ[c]||c}</label><input type="date" id="cmp-${c}" value="${new Date().toISOString().slice(0,10)}"></div>`
-          : `<div><label>${ETIQ[c]||c}</label><input type="text" id="cmp-${c}" placeholder="${ETIQ[c]||c}"></div>`).join('')}
+          : `<div><label>${ETIQ[c]||c}</label><input type="${c==='importe_pagado'?'number':'text'}" ${c==='importe_pagado'?'step="0.01" min="0"':''} id="cmp-${c}" placeholder="${ETIQ[c]||c}"></div>`).join('')}
           <button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`;
       }
       if(faltanEv.length){
@@ -538,6 +538,7 @@ function abrir(id){
       <div><div class="l">No. Factura</div><div class="vv">${s.num_factura||'—'}</div></div>
       <div><div class="l">Fecha factura</div><div class="vv">${s.fecha_factura||'—'}</div></div>
       <div><div class="l">Fecha de pago</div><div class="vv">${s.fecha_pago||'—'}</div></div>
+      <div><div class="l">Importe pagado</div><div class="vv" style="color:#22d39a;">${s.importe_pagado!=null?fmt(s.importe_pagado):'—'}</div></div>
       <div><div class="l">Placas</div><div class="vv">${s.placas||'—'}</div></div>
       <div><div class="l">Conductor</div><div class="vv">${s.conductor||'—'}</div></div>
       <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
@@ -596,8 +597,16 @@ async function subirGate(id,tipo,input){
 }
 async function guardarCampos(id,campos){
   const upd={}; let falta=false;
-  campos.forEach(c=>{ const v=document.getElementById('cmp-'+c).value.trim(); if(!v) falta=true; upd[c]=v; });
-  if(falta){ alert('Llena todos los campos.'); return; }
+  campos.forEach(c=>{
+    const v=document.getElementById('cmp-'+c).value.trim();
+    if(!v){ falta=true; return; }
+    if(c==='importe_pagado'){
+      const n=parseFloat(v);
+      if(isNaN(n)||n<0){ falta=true; return; }
+      upd[c]=n;
+    } else upd[c]=v;
+  });
+  if(falta){ alert('Llena todos los campos con datos válidos.'); return; }
   const { error }=await sb.from('tm_servicios').update(upd).eq('id',id);
   if(error){ alert('No se pudo guardar: '+error.message); return; }
   await cargarTodo();
