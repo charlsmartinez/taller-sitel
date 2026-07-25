@@ -229,7 +229,7 @@ const siguiente=(est)=>{ const i=FLUJO.indexOf(est); return (i>=0&&i<FLUJO.lengt
 const contaEjecuta=(dest)=>CONTA.includes(dest);        // 10, 11 y 13 son suyos; el 12 es del generalista
 const NUM={'Pendiente de Factura':9,'Contabilidad Emitió Factura':10,'Se Envía Factura a Telmex':11,'Factura Pagada':12};
 const CORTO={'Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada a TMX','Factura Pagada':'Factura pagada'};
-const COLOR={'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#0e9f6e'};
+const COLOR={'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37'};
 // Campos requeridos para avanzar
 const CAMPOS={'Contabilidad Emitió Factura':['num_factura','fecha_factura'],'Factura Pagada':['fecha_pago']};  // número y fecha al emitir; fecha de pago al cerrar
 const ETIQ={num_factura:'Número de factura',fecha_factura:'Fecha de factura',fecha_pago:'Fecha de pago',importe_pagado:'Importe pagado en la factura'};
