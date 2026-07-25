@@ -682,7 +682,7 @@ function render(){
       <td><b>${s.vehiculo||'—'}</b><div class="sub">${s.placas||'—'} · ${s.serie?s.serie.slice(-6):'—'}</div></td>
       <td style="max-width:190px; color:var(--muted); font-size:11.5px;">${(s.diagnosticos||s.falla||'—').slice(0,70)}${(()=>{const a=alertaAutorizacion(s);return a?`<div style="margin-top:4px;color:#ff5a6a;font-weight:800;font-size:10px;">⏰ ${a.dias} días sin autorizar</div>`:'';})()}</td>
       <td style="font-weight:700; font-variant-numeric:tabular-nums;">${t.total?fmt(t.total):'—'}</td>
-      <td><span class="badge" style="background:${COLOR[s.estatus]||'#666'};${s.estatus==='Diagnóstico'?'color:#3a2e00;':''}">${s.estatus}</span></td>
+      <td><span class="badge" style="background:${COLOR[s.estatus]||'#666'};${s.estatus==='Diagnóstico'?'color:#3a2e00;':''}">${nomPaso(s.estatus)}</span></td>
       <td>${acc}</td>`;
     tb.appendChild(tr);
   });
@@ -779,7 +779,7 @@ function abrir(id){
     <td style="text-align:center;">${chipTipo}</td>
     <td>${editRef?`<input list="prov-list" id="prov-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:140px;font-size:11.5px;" oninput="reactivar('gr-${r.id}')">`:(r.proveedor||'—')}</td>
     <td style="text-align:right;">${editRef?`<input type="number" step="0.01" id="costo-${r.id}" value="${r.costo||0}" style="width:92px;text-align:right;" oninput="reactivar('gr-${r.id}')">`:fmt(r.costo)}</td>
-    <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${fmt(precioCliente(r))}</td>
+    <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${r.es_adicional?'<span style="color:var(--muted);font-weight:400;">—</span>':fmt(precioCliente(r))}</td>
     ${editRef?`<td style="text-align:center;white-space:nowrap;"><button class="btn-sm" id="gr-${r.id}" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;margin-right:5px;" onclick="guardarRef('${r.id}')">Guardar</button><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:(editable?'<td></td>':'')}</tr>`;}).join('')
     ||`<tr><td colspan="7" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
   const datalistProv = `<datalist id="prov-list">${provOpts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
@@ -865,7 +865,7 @@ function abrir(id){
     <div class="sect-h">Cargar evidencias adicionales</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <label class="up" style="margin:0;">🔧 Agregar foto de <b>pieza cambiada</b><input type="file" accept="image/*" onchange="subirPieza('${id}',this)"></label>
-      <label class="up" style="margin:0;">📷 Agregar foto extra<input type="file" accept="image/*" onchange="subirExtra('${id}',this)"></label>
+      <label class="up" style="margin:0;">📷 Subir foto de pieza dañada<input type="file" accept="image/*" onchange="subirExtra('${id}',this)"></label>
     </div>` : '';
 
   const moBox = editable&&s.nuevo_flujo!==false
@@ -903,8 +903,11 @@ function abrir(id){
       </div>`:''}
     <div style="margin:14px 0;">${botones}${botonesEspecial}</div>
     <div class="info">
+      <div><div class="l">Económico</div><div class="vv" style="color:var(--cyan);font-weight:800;">${s.economico||'—'}</div></div>
       <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
       <div><div class="l">COT</div><div class="vv">${s.cot||'—'}</div></div>
+      <div><div class="l">No. Factura</div><div class="vv">${s.num_factura||'—'}</div></div>
+      <div><div class="l">Fecha de pago</div><div class="vv">${s.fecha_pago||'—'}</div></div>
       <div><div class="l">Plaza</div><div class="vv">${s.plaza||'—'}</div></div>
       <div><div class="l">COPE</div><div class="vv" style="font-size:11.5px;">${s.cope||'—'}</div></div>
       <div><div class="l">Marca / Modelo</div><div class="vv">${s.marca||'—'} ${s.modelo||''}</div></div>
@@ -979,7 +982,7 @@ function abrir(id){
     ${grupo('Evidencia de facturación',fact)}
     ${grupo('Evidencia de entrega',ent,'entrega')}
     ${grupo('Piezas cambiadas',piezas,'pieza')}
-    ${grupo('Fotos extra',extras)}
+    ${grupo('Fotos de pieza dañada',extras)}
     ${extrasEditables}
     <div class="sect-h">Historial</div>
     ${hist.filter(h=>h.servicio_id===id).map(h=>`<div class="sub" style="padding:4px 0;">• ${h.estatus} <span style="opacity:.6;">— ${new Date(h.fecha).toLocaleString('es-MX')} ${h.usuario?('· '+h.usuario):''}</span></div>`).join('')||'<div class="sub">Sin historial.</div>'}`;
@@ -1516,7 +1519,7 @@ function exportarExcel(){
   const headers=['ECONOMICO','OT','COT','PLAZA','MARCA','MODELO','AÑO','PLACAS','SERIE','KM','CONDUCTOR','MECANICO','DIAGNOSTICO','ESTATUS','DIAS EN PASO']
     .concat(['COSTO PIEZAS','PIEZAS +'+Math.round((CFG.markup_piezas-1)*100)+'%','MANO DE OBRA','SUBTOTAL','IVA','TOTAL C/IVA'])
     .concat(verUtilidad?['UTILIDAD']:[])
-    .concat(['REFACCIONES','INGRESO']);
+    .concat(['REFACCIONES','INGRESO','No. FACTURA','FECHA PAGO']);
   let tc=0,tp=0,tm=0,tsub=0,tiva=0,tv=0,tu=0,body='';
   const porEstatus={}, porPlaza={};
   rows.forEach(s=>{
@@ -1529,12 +1532,12 @@ function exportarExcel(){
     let c=[s.economico,s.ot,s.cot,s.plaza,s.marca,s.modelo,s.anio,s.placas,s.serie,s.kilometraje,s.conductor,s.mecanico,s.diagnosticos||s.falla,s.estatus,diasEnPaso(s)];
     c=c.concat([t.costo.toFixed(2),t.piezasCliente.toFixed(2),t.mo.toFixed(2),t.subtotal.toFixed(2),t.iva.toFixed(2),t.total.toFixed(2)]);
     if(verUtilidad) c=c.concat([t.utilidad.toFixed(2)]);
-    c=c.concat([det,s.fecha_recepcion]);
+    c=c.concat([det,s.fecha_recepcion,s.num_factura||'',s.fecha_pago||'']);
     body+='<tr>'+c.map(x=>`<td style="border:1px solid #cfd6e4;padding:5px 7px;mso-number-format:'\\@';">${he(x)}</td>`).join('')+'</tr>';
   });
   const nCols=headers.length;
   const sumas=[tc,tp,tm,tsub,tiva,tv].concat(verUtilidad?[tu]:[]);
-  const tot=`<tr><td colspan="15" style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;text-align:right;background:#eef2fb;">TOTALES — ${rows.length} servicios</td>${sumas.map(v=>`<td style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;background:#eef2fb;">${v.toFixed(2)}</td>`).join('')}<td colspan="2" style="border:1px solid #cfd6e4;background:#eef2fb;"></td></tr>`;
+  const tot=`<tr><td colspan="15" style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;text-align:right;background:#eef2fb;">TOTALES — ${rows.length} servicios</td>${sumas.map(v=>`<td style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;background:#eef2fb;">${v.toFixed(2)}</td>`).join('')}<td colspan="4" style="border:1px solid #cfd6e4;background:#eef2fb;"></td></tr>`;
   const hh=headers.map(h=>`<th style="background:#1f2340;color:#fff;border:1px solid #1f2340;padding:7px;font-size:11px;text-align:left;white-space:nowrap;">${he(h)}</th>`).join('');
   const tabla=`<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;"><tr><td colspan="${nCols}" style="background:#0f1330;color:#fff;padding:10px;font-size:15px;font-weight:bold;">SITEL AUTOMOTRIZ &mdash; Taller Manager &nbsp;|&nbsp; Plaza: ${he(plazaLabel)}${fe!=='Todos'?' &nbsp;|&nbsp; Estatus: '+he(fe):''}${fb?' &nbsp;|&nbsp; Búsqueda: "'+he(fb)+'"':''} &nbsp;|&nbsp; ${new Date().toLocaleDateString('es-MX')} &nbsp;|&nbsp; ${rows.length} servicios (usa los filtros ▾ de la cabecera)</td></tr><tr>${hh}</tr>${body}${tot}</table>`;
 

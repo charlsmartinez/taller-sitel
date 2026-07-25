@@ -447,6 +447,11 @@ function abrir(id){
   const t=totales(s); const p=document.getElementById('panel');
   const campos=next?(CAMPOS[next]||[]):[]; const faltanCampos=campos.filter(c=>!s[c]);
   const gate=next?(GATES[next]||[]):[]; const faltanEv=gate.filter(g=>!evT[g]);
+  const campoRow=c=> s[c]
+    ? `<div style="display:flex;flex-direction:column;gap:5px;min-width:150px;"><label>${ETIQ[c]||c}</label><div style="font-size:13px;font-weight:700;color:#3fe0ad;background:rgba(34,211,154,.12);border:1px solid rgba(34,211,154,.4);border-radius:8px;padding:9px 11px;white-space:nowrap;">✓ ${s[c]}</div></div>`
+    : (c.startsWith('fecha')
+        ? `<div><label>${ETIQ[c]||c}</label><input type="date" id="cmp-${c}" value="${new Date().toISOString().slice(0,10)}"></div>`
+        : `<div><label>${ETIQ[c]||c}</label><input type="${c==='importe_pagado'?'number':'text'}" ${c==='importe_pagado'?'step="0.01" min="0"':''} id="cmp-${c}" placeholder="${ETIQ[c]||c}"></div>`);
 
   const pipeIdx = idx;
   const pipe=FLUJO.map((st,i)=>`<div style="flex:1;min-width:78px;text-align:center;font-size:9px;font-weight:700;padding:8px 4px;border-radius:8px;line-height:1.25;
@@ -512,9 +517,7 @@ function abrir(id){
     if(faltanCampos.length || faltanEv.length){
       accion+=`<div class="gate">Antes, sube lo que te toca: ${[...faltanCampos.map(c=>ETIQ[c]||c),...faltanEv.map(g=>GNOM[g]||g)].join(' · ')}.</div>`;
       if(faltanCampos.length){
-        accion+=`<div class="frow">${faltanCampos.map(c=>c.startsWith('fecha')
-          ? `<div><label>${ETIQ[c]||c}</label><input type="date" id="cmp-${c}" value="${new Date().toISOString().slice(0,10)}"></div>`
-          : `<div><label>${ETIQ[c]||c}</label><input type="${c==='importe_pagado'?'number':'text'}" ${c==='importe_pagado'?'step="0.01" min="0"':''} id="cmp-${c}" placeholder="${ETIQ[c]||c}"></div>`).join('')}
+        accion+=`<div class="frow">${campos.map(campoRow).join('')}
           <button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`;
       }
       if(faltanEv.length){
@@ -530,9 +533,7 @@ function abrir(id){
     if(partes.length){
       accion=`<div class="gate">Para pasar a <b>${next}</b> falta: ${partes.join(' · ')}.</div>`;
       if(faltanCampos.length){
-        accion+=`<div class="frow">${faltanCampos.map(c=>c.startsWith('fecha')
-          ? `<div><label>${ETIQ[c]}</label><input type="date" id="cmp-${c}" value="${new Date().toISOString().slice(0,10)}"></div>`
-          : `<div><label>${ETIQ[c]}</label><input type="text" id="cmp-${c}" placeholder="${ETIQ[c]}"></div>`).join('')}
+        accion+=`<div class="frow">${campos.map(campoRow).join('')}
           <button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`;
       }
       if(faltanEv.length){

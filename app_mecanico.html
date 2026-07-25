@@ -199,7 +199,7 @@ textarea{ min-height:80px; resize:vertical; }
   </div>
 
   <div class="card">
-    <h2>Fotos extra (opcional)</h2>
+    <h2>Foto de pieza dañada (opcional)</h2>
     <div class="hint">Pieza dañada, detalles, lo que quieras documentar.</div>
     <div class="fotos" id="extras-grid"></div>
   </div>
@@ -234,7 +234,7 @@ const fotosEl = document.getElementById('fotos');
 TIPOS.forEach(t => {
   const d = document.createElement('label'); d.className='foto'; d.id='slot-'+t.k;
   d.innerHTML = `<span class="check">✓</span><span class="emoji">${t.e}</span><span class="lbl">${t.l}</span>
-    <input type="file" accept="image/*" capture="environment" onchange="onFoto('${t.k}', this)">`;
+    <input type="file" accept="image/*" onchange="onFoto('${t.k}', this)">`;
   fotosEl.appendChild(d);
 });
 
@@ -246,10 +246,10 @@ function renderExtras(){
     g.appendChild(d);
   });
   const add=document.createElement('label'); add.className='foto'; add.style.minHeight='120px';
-  add.innerHTML=`<span class="emoji">➕</span><span class="lbl">Agregar foto</span><input type="file" accept="image/*" capture="environment" onchange="onExtra(this)">`;
+  add.innerHTML=`<span class="emoji">➕</span><span class="lbl">Subir foto de pieza dañada</span><input type="file" accept="image/*" multiple onchange="onExtra(this)">`;
   g.appendChild(add);
 }
-async function onExtra(input){ const f=input.files[0]; if(!f) return; extras.push(await comprimir(f)); renderExtras(); }
+async function onExtra(input){ const files=Array.from(input.files||[]); if(!files.length) return; for(const f of files){ extras.push(await comprimir(f)); } renderExtras(); }
 function removeExtra(i){ extras.splice(i,1); renderExtras(); }
 renderExtras();
 
