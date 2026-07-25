@@ -138,8 +138,14 @@ textarea{ min-height:80px; resize:vertical; }
     <label>Económico <span class="req">*</span></label>
     <input type="text" id="f-economico" placeholder="No. económico">
     <div class="row2">
-      <div><label>Marca <span class="req">*</span></label><input type="text" id="f-marca" placeholder="Ej. Chevrolet"></div>
-      <div><label>Modelo <span class="req">*</span></label><input type="text" id="f-modelo" placeholder="Ej. Spark"></div>
+      <div><label>Marca <span class="req">*</span></label>
+        <select id="f-marca" onchange="toggleOtroCampo('marca')"><option value="">— Selecciona —</option></select>
+        <input type="text" id="f-marca-otro" class="hide" placeholder="Especifica la marca" style="margin-top:8px;">
+      </div>
+      <div><label>Modelo <span class="req">*</span></label>
+        <select id="f-modelo" onchange="toggleOtroCampo('modelo')"><option value="">— Selecciona —</option></select>
+        <input type="text" id="f-modelo-otro" class="hide" placeholder="Especifica el modelo" style="margin-top:8px;">
+      </div>
     </div>
     <div class="row2">
       <div><label>Año <span class="req">*</span></label><input type="text" id="f-anio" placeholder="Ej. 2012" inputmode="numeric"></div>
@@ -283,6 +289,21 @@ async function login(){
   if(error){ m.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Ingresar'; return; }
   await cargarPerfil(data.user); b.disabled=false; b.textContent='Ingresar';
 }
+// Catálogo de marcas y modelos (CATALOGO_COPES_AUTOS_Y_OTROS.xlsx)
+const MARCAS=['CHEVROLET','DODGE','FORD','JAC','NISSAN','RAM','RENAULT','TOYOTA','VOLKSWAGEN','YALE','OTRO'];
+const MODELOS=['AVEO','BEAT','CHEVY','CHEVY MONZA','CHEYENNE','DM250','E10X','ECOLINE','ECONOLINE','ECONOLITE','EQUINOX','F 150','F 250','F 350','F 450','F100 RANGER','FRISION FLEX','FRISON','FRONTIER','HILUX','IKON','KWID','LOBO','MARCH','MATIZ','MONTACARGAS','N/A','NP300 PICK UP','PICK UP S10','POINTER','RAM','RAM 1500','RAM 250','RAM WAGON 1500','RAM-1500','RANGER','S 10 MAX','S10','SEI2','SEI3','SILVERADO','SILVERADO 1500','SILVERADO 2500','SILVERADO 3500','SILVERADO F-250','SPARK','URVAN','OTRO'];
+function llenarSelectsVehiculo(){
+  const selM=document.getElementById('f-marca'), selMo=document.getElementById('f-modelo');
+  if(selM) selM.innerHTML='<option value="">— Selecciona —</option>'+MARCAS.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(selMo) selMo.innerHTML='<option value="">— Selecciona —</option>'+MODELOS.map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+function toggleOtroCampo(campo){
+  const sel=document.getElementById('f-'+campo), otro=document.getElementById('f-'+campo+'-otro');
+  const on = sel.value==='OTRO';
+  otro.classList.toggle('hide',!on);
+  if(!on) otro.value='';
+}
+
 // COPEs activos de la plaza donde se recibe la unidad
 let COPES=[];
 async function cargarCopes(){
@@ -316,6 +337,7 @@ async function cargarPerfil(user){
   }
   profile={ id:prof.id, plaza_id:prof.plaza_id, plaza:prof.tm_plazas?prof.tm_plazas.nombre:'', nombre:prof.nombre||user.email, rol:prof.rol };
   cargarCopes();
+  llenarSelectsVehiculo();
   document.getElementById('plaza-badge').textContent='📍 '+(profile.plaza||'Elige la plaza');
   if(!profile.plaza_id) await mostrarSelectorPlaza();   // admin y gerencia no tienen plaza propia
   document.getElementById('f-fecha').value=new Date().toISOString().slice(0,10);
@@ -513,6 +535,8 @@ async function enviar(){
   obligatorios.forEach(([id,l])=>{ const el=document.getElementById(id); if(!el.value.trim()){ faltanCampos.push(l); el.classList.add('err'); } else el.classList.remove('err'); });
   if(faltanCampos.length){ msg.className='msg err'; msg.textContent='Faltan datos: '+faltanCampos.join(', '); window.scrollTo(0,0); return; }
   if(otroOn && !g('f-otro')){ msg.className='msg err'; msg.textContent='Escribe el diagnóstico en "Otro".'; document.getElementById('f-otro').classList.add('err'); return; }
+  if(document.getElementById('f-marca').value==='OTRO' && !g('f-marca-otro')){ msg.className='msg err'; msg.textContent='Especifica la marca en "Otro".'; document.getElementById('f-marca-otro').classList.add('err'); return; }
+  if(document.getElementById('f-modelo').value==='OTRO' && !g('f-modelo-otro')){ msg.className='msg err'; msg.textContent='Especifica el modelo en "Otro".'; document.getElementById('f-modelo-otro').classList.add('err'); return; }
   if(!profile.plaza_id && !PLAZA_ELEGIDA){ msg.className='msg err'; msg.textContent='Selecciona la plaza donde se recibe la unidad.'; document.getElementById('plaza-sel-box').scrollIntoView({behavior:'smooth',block:'center'}); return; }
   if(!libre && !diagSel.size && !otroOn && !g('f-falla')){ msg.className='msg err'; msg.textContent='Selecciona al menos un diagnóstico o escribe un comentario.'; return; }
   const faltanFotos = libre ? [] : TIPOS.filter(t=>!fotos[t.k]).map(t=>t.l);
@@ -520,12 +544,14 @@ async function enviar(){
 
   const b=document.getElementById('btn-enviar'); b.disabled=true; b.innerHTML='<span class="spin"></span>Registrando...';
   try{
-    const vehiculo=[g('f-marca'),g('f-modelo'),g('f-anio')].filter(Boolean).join(' ');
+    const marcaVal = document.getElementById('f-marca').value==='OTRO' ? g('f-marca-otro') : g('f-marca');
+    const modeloVal = document.getElementById('f-modelo').value==='OTRO' ? g('f-modelo-otro') : g('f-modelo');
+    const vehiculo=[marcaVal,modeloVal,g('f-anio')].filter(Boolean).join(' ');
     const lista=Array.from(diagSel); if(otroOn && g('f-otro')) lista.push(g('f-otro'));
     const diags=lista.join(' / ');
     const { data:serv, error:e1 } = await sb.from('tm_servicios').insert({
       plaza_id:profile.plaza_id||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.id)||null, plaza:profile.plaza||(PLAZA_ELEGIDA&&PLAZA_ELEGIDA.nombre)||null,
-      economico:g('f-economico'), marca:g('f-marca'), modelo:g('f-modelo'), anio:g('f-anio'),
+      economico:g('f-economico'), marca:marcaVal, modelo:modeloVal, anio:g('f-anio'),
       placas:g('f-placas'), serie:g('f-serie'), vehiculo:vehiculo, cope:g('f-cope')||null,
       kilometraje:g('f-km'), odometro:g('f-km'),
       diagnosticos:diags, falla:g('f-falla')||diags,
@@ -565,12 +591,14 @@ async function enviar(){
 }
 
 function nuevaOrden(){
-  ['f-economico','f-marca','f-modelo','f-anio','f-placas','f-serie','f-km','f-falla','f-otro'].forEach(id=>document.getElementById(id).value='');
+  ['f-economico','f-marca','f-modelo','f-marca-otro','f-modelo-otro','f-anio','f-placas','f-serie','f-km','f-falla','f-otro'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-fecha').value=new Date().toISOString().slice(0,10);
   fotos={}; extras=[]; refsTmp=[]; diagSel.clear(); otroOn=false;
   const bd=document.getElementById('f-filtro-diag'); if(bd) bd.value='';
   document.querySelectorAll('.chip.on').forEach(c=>c.classList.remove('on'));
   document.getElementById('otro-box').classList.add('hide');
+  document.getElementById('f-marca-otro').classList.add('hide');
+  document.getElementById('f-modelo-otro').classList.add('hide');
   document.getElementById('f-otro').value='';
   TIPOS.forEach(t=>{ const s=document.getElementById('slot-'+t.k); s.classList.remove('done'); const im=s.querySelector('img'); if(im) im.remove(); });
   renderExtras(); renderRefs();
