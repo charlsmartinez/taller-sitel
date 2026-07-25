@@ -291,6 +291,7 @@ async function fetchAll(build){
   return {data:out};
 }
 async function cargarTodo(){
+  const _scrollY = window.scrollY;   // no perder de vista lo que el usuario esta capturando
   const [s,r,e,h]=await Promise.all([
     fetchAll(()=>sb.from('tm_servicios').select('*').in('estatus',VISIBLES).order('updated_at',{ascending:false})),
     fetchAll(()=>sb.from('tm_refacciones').select('*')),
@@ -307,6 +308,7 @@ async function cargarTodo(){
     });
   }catch(e){}
   render(); if(activeId) abrir(activeId);
+  requestAnimationFrame(()=>window.scrollTo(0,_scrollY));
 }
 function suscribir(){
   sb.channel('tm-conta')
@@ -480,10 +482,9 @@ function abrir(id){
     const pcli = r.es_adicional ? 0 : Math.round((r.cantidad||0)*(r.costo||0)*markupDe(r)*100)/100;
     return `<tr${r.es_adicional?' style="opacity:.75;"':''}><td>${r.descripcion||''}${r.es_adicional?'<span style="font-size:10px;color:#ffb84d;font-weight:800;"> · adicional (no se factura)</span>':''}</td>
     <td style="text-align:center;">${r.cantidad}</td>
-    <td style="text-align:center;font-size:10.5px;font-weight:700;color:${elec?'#c4a7ff':'#8fb0ff'};">${elec?'Eléctrica 30%':'Mecánica 20%'}</td>
     <td style="text-align:right;">${fmt(r.costo)}</td>
     <td style="text-align:right;color:var(--gold);font-weight:700;">${r.es_adicional?'—':fmt(pcli)}</td></tr>`;}).join('')
-    ||'<tr><td colspan="5" style="color:#8b93b8;">Sin refacciones registradas.</td></tr>';
+    ||'<tr><td colspan="4" style="color:#8b93b8;">Sin refacciones registradas.</td></tr>';
 
   // Importe pagado: visible, corregible y comparado contra lo cotizado a Telmex
   let importeBox='';
@@ -507,6 +508,16 @@ function abrir(id){
     </div>`;
   }
 
+  // Los campos y las casillas de carga se quedan siempre visibles: al guardarse cambian a verde con su valor.
+  const evRow = g => {
+    const ya = !!evT[g];
+    const ok = 'border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
+    return `<label class="up" style="${ya?ok:''}">${ya?'✓':'🧾'} ${GNOM[g]||g}${ya?' · Guardado':''}<input type="file" accept="image/*,application/pdf,.xml" onchange="subirGate('${id}','${g}',this)"></label>`;
+  };
+  const capturaHtml =
+      (campos.length ? `<div class="frow">${campos.map(campoRow).join('')}${faltanCampos.length?`<button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button>`:''}</div>` : '')
+    + (gate.length ? gate.map(evRow).join('') : '');
+
   let accion='';
   // El paso 11 lo mueve el generalista, PERO la factura (PDF y XML) la sube contabilidad
   // estando en el paso 10. Por eso aquí siguen apareciendo sus botones de carga.
@@ -514,34 +525,18 @@ function abrir(id){
     accion=`<div class="gate" style="background:rgba(95,139,255,.1);border-color:rgba(95,139,255,.35);color:#a9c1ff;">
       Siguiente paso: <b>${next}</b> — lo realiza el <b>generalista</b> de la plaza, que entrega la factura al cliente y sube su acuse.
       Cuando lo haga, la orden regresa aquí para registrar el pago.</div>`;
-    if(faltanCampos.length || faltanEv.length){
-      accion+=`<div class="gate">Antes, sube lo que te toca: ${[...faltanCampos.map(c=>ETIQ[c]||c),...faltanEv.map(g=>GNOM[g]||g)].join(' · ')}.</div>`;
-      if(faltanCampos.length){
-        accion+=`<div class="frow">${campos.map(campoRow).join('')}
-          <button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`;
-      }
-      if(faltanEv.length){
-        accion+=faltanEv.map(g=>`<label class="up">🧾 Subir ${GNOM[g]||g}<input type="file" accept="image/*,application/pdf,.xml" onchange="subirGate('${id}','${g}',this)"></label>`).join('');
-      }
-    } else {
-      accion+=`<div class="gate ok">✓ Ya subiste todo lo tuyo. Falta que el generalista entregue la factura.</div>`;
-    }
+    accion += (faltanCampos.length || faltanEv.length)
+      ? `<div class="gate">Antes, sube lo que te toca: ${[...faltanCampos.map(c=>ETIQ[c]||c),...faltanEv.map(g=>GNOM[g]||g)].join(' · ')}.</div>`
+      : `<div class="gate ok">✓ Ya subiste todo lo tuyo. Falta que el generalista entregue la factura.</div>`;
+    accion += capturaHtml;
   } else if(next){
     const partes=[];
     if(faltanCampos.length) partes.push(faltanCampos.map(c=>ETIQ[c]).join(', '));
     if(faltanEv.length) partes.push(faltanEv.map(g=>GNOM[g]||g).join(', '));
-    if(partes.length){
-      accion=`<div class="gate">Para pasar a <b>${next}</b> falta: ${partes.join(' · ')}.</div>`;
-      if(faltanCampos.length){
-        accion+=`<div class="frow">${campos.map(campoRow).join('')}
-          <button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button></div>`;
-      }
-      if(faltanEv.length){
-        accion+=faltanEv.map(g=>`<label class="up">🧾 Subir ${GNOM[g]||g}<input type="file" accept="image/*,application/pdf,.xml" onchange="subirGate('${id}','${g}',this)"></label>`).join('');
-      }
-    } else {
-      accion=`<div class="gate ok">✓ Listo para avanzar a <b>${next}</b>.</div>`;
-    }
+    accion = partes.length
+      ? `<div class="gate">Para pasar a <b>${next}</b> falta: ${partes.join(' · ')}.</div>`
+      : `<div class="gate ok">✓ Listo para avanzar a <b>${next}</b>.</div>`;
+    accion += capturaHtml;
     accion+=`<div style="margin:14px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <button class="btn-adv" style="margin:0;width:auto;flex:1;min-width:220px;" ${(faltanCampos.length||faltanEv.length)?'disabled':''} onclick="avanzar('${id}')">Avanzar a: ${next} →</button>
       ${(idx>0 && (contaEjecuta(FLUJO[idx-1])||FLUJO[idx-1]==='Pendiente de Factura'))?`<button class="btn-back" onclick="retroceder('${id}')" title="Regresar al paso anterior">← Regresar</button>`:''}
@@ -568,7 +563,7 @@ function abrir(id){
       <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
     </div>
     <div class="sect-h">Desglose de la orden</div>
-    <table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:center;">Tipo</th><th style="text-align:right;">Costo</th><th style="text-align:right;">Precio cliente</th></tr></thead><tbody>${partsRows}</tbody></table>
+    <table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:right;">Costo</th><th style="text-align:right;">Precio cliente</th></tr></thead><tbody>${partsRows}</tbody></table>
 
     <div style="margin-top:16px;padding:12px 14px;border-radius:12px;background:rgba(34,211,154,.06);border:1px solid rgba(34,211,154,.25);">
       <div style="font-size:11px;font-weight:900;color:#3fe0ad;letter-spacing:.5px;margin-bottom:10px;">🧾 LO QUE SE FACTURA A TELMEX &nbsp;·&nbsp; no cambia</div>

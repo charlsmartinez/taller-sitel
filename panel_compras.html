@@ -277,6 +277,7 @@ async function fetchAll(build){
   return {data:out};
 }
 async function cargarTodo(){
+  const _scrollY = window.scrollY;   // no perder de vista lo que el usuario esta capturando
   const [s,r,e]=await Promise.all([
     fetchAll(()=>sb.from('tm_servicios').select('*').eq('nuevo_flujo',true).in('estatus',VISIBLES).order('updated_at',{ascending:false})),
     fetchAll(()=>sb.from('tm_refacciones').select('*')),
@@ -284,6 +285,7 @@ async function cargarTodo(){
   ]);
   servicios=s.data||[]; refs=r.data||[]; evis=e.data||[]; hist=[];
   render(); if(activeId) abrir(activeId);
+  requestAnimationFrame(()=>window.scrollTo(0,_scrollY));
 }
 function suscribir(){
   sb.channel('tm-compras')
