@@ -779,11 +779,12 @@ function abrir(id){
     return `<tr>
     <td>${r.descripcion||''}${r.es_adicional?'<span style="font-size:10px;color:#ffb84d;font-weight:800;"> · adicional</span>':''}</td>
     <td style="text-align:center;">${r.cantidad}</td>
+    <td style="text-align:center;">${chipTipo}</td>
     <td>${editRef?`<input list="prov-list" id="prov-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="¿Dónde se compra?" style="width:140px;font-size:11.5px;" oninput="reactivar('gr-${r.id}')">`:(r.proveedor||'—')}</td>
     <td style="text-align:right;">${editRef?`<input type="number" step="0.01" id="costo-${r.id}" value="${r.costo||0}" style="width:92px;text-align:right;" oninput="reactivar('gr-${r.id}')">`:fmt(r.costo)}</td>
     <td style="text-align:right;color:var(--cyan);font-weight:700;" data-imp="${r.id}">${r.es_adicional?'<span style="color:var(--muted);font-weight:400;">—</span>':fmt(precioCliente(r))}</td>
     ${editRef?`<td style="text-align:center;white-space:nowrap;"><button class="btn-sm" id="gr-${r.id}" style="background:linear-gradient(135deg,#22d39a,#12a878);color:#04120c;border:0;font-weight:800;margin-right:5px;" onclick="guardarRef('${r.id}')">Guardar</button><button class="btn-sm" style="background:rgba(255,90,106,.12);color:#ff8f9a;border-color:rgba(255,90,106,.35);" onclick="delRef('${r.id}')">✕</button></td>`:(editable?'<td></td>':'')}</tr>`;}).join('')
-    ||`<tr><td colspan="6" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
+    ||`<tr><td colspan="7" style="color:#8b93b8;">Sin refacciones.</td></tr>`;
   const datalistProv = `<datalist id="prov-list">${provOpts.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
 
   let sugHtml='';
@@ -930,7 +931,7 @@ function abrir(id){
     </div>`:''}
 
     <div class="sect-h">Refacciones y costos</div>
-    ${datalistProv}<table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th>Proveedor</th><th style="text-align:right;">Costo nuestro</th><th style="text-align:right;">Precio cliente</th>${editable?'<th></th>':''}</tr></thead><tbody>${partsRows}</tbody></table>
+    ${datalistProv}<table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:center;">Tipo</th><th>Proveedor</th><th style="text-align:right;">Costo nuestro</th><th style="text-align:right;">Precio cliente</th>${editable?'<th></th>':''}</tr></thead><tbody>${partsRows}</tbody></table>
     ${refsCerradas?'<div style="font-size:11px;color:var(--muted);margin-top:7px;">🔒 Las refacciones cotizadas ya no se modifican desde este paso. Si surge una pieza no contemplada, agrégala como <b>refacción adicional</b>.</div>':''}
     ${editRef?`<div style="display:grid;grid-template-columns:2fr 70px 100px 80px;gap:8px;margin-top:10px;">
       <input type="text" id="nr-desc" placeholder="Nueva refacción" style="margin:0;">

@@ -482,9 +482,10 @@ function abrir(id){
     const pcli = r.es_adicional ? 0 : Math.round((r.cantidad||0)*(r.costo||0)*markupDe(r)*100)/100;
     return `<tr${r.es_adicional?' style="opacity:.75;"':''}><td>${r.descripcion||''}${r.es_adicional?'<span style="font-size:10px;color:#ffb84d;font-weight:800;"> · adicional (no se factura)</span>':''}</td>
     <td style="text-align:center;">${r.cantidad}</td>
+    <td style="text-align:center;font-size:10.5px;font-weight:700;color:${elec?'#c4a7ff':'#8fb0ff'};">${elec?'Eléctrica 30%':'Mecánica 20%'}</td>
     <td style="text-align:right;">${fmt(r.costo)}</td>
     <td style="text-align:right;color:var(--gold);font-weight:700;">${r.es_adicional?'—':fmt(pcli)}</td></tr>`;}).join('')
-    ||'<tr><td colspan="4" style="color:#8b93b8;">Sin refacciones registradas.</td></tr>';
+    ||'<tr><td colspan="5" style="color:#8b93b8;">Sin refacciones registradas.</td></tr>';
 
   // Importe pagado: visible, corregible y comparado contra lo cotizado a Telmex
   let importeBox='';
@@ -563,7 +564,7 @@ function abrir(id){
       <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
     </div>
     <div class="sect-h">Desglose de la orden</div>
-    <table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:right;">Costo</th><th style="text-align:right;">Precio cliente</th></tr></thead><tbody>${partsRows}</tbody></table>
+    <table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:center;">Tipo</th><th style="text-align:right;">Costo</th><th style="text-align:right;">Precio cliente</th></tr></thead><tbody>${partsRows}</tbody></table>
 
     <div style="margin-top:16px;padding:12px 14px;border-radius:12px;background:rgba(34,211,154,.06);border:1px solid rgba(34,211,154,.25);">
       <div style="font-size:11px;font-weight:900;color:#3fe0ad;letter-spacing:.5px;margin-bottom:10px;">🧾 LO QUE SE FACTURA A TELMEX &nbsp;·&nbsp; no cambia</div>
