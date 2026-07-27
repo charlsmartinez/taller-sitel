@@ -480,8 +480,27 @@ async function fetchAll(build){
   }
   return {data:out};
 }
+// --- La vista no se mueve al guardar ---------------------------------------
+// El scroll NO vive en la ventana: vive en el panel lateral y en la lista.
+// Por eso hay que recordar y devolver el scroll de esos contenedores.
+function _guardarVista(){
+  const p=document.getElementById('panel'), m=document.querySelector('.main');
+  return { panel: p?p.scrollTop:0, main: m?m.scrollTop:0, win: window.scrollY };
+}
+function _devolverVista(v){
+  const aplicar=()=>{
+    const p=document.getElementById('panel'), m=document.querySelector('.main');
+    if(p && v.panel) p.scrollTop=v.panel;
+    if(m && v.main)  m.scrollTop=v.main;
+    if(v.win) window.scrollTo(0,v.win);
+  };
+  aplicar();                                  // de inmediato
+  requestAnimationFrame(aplicar);             // tras re-dibujar
+  setTimeout(aplicar,60);                     // y tras acomodarse las imagenes
+}
+
 async function cargarTodo(){
-  const _scrollY = window.scrollY;   // no perder de vista lo que el usuario esta capturando
+  const _vista=_guardarVista();
   const [s,r,e,h,d,pv]=await Promise.all([
     fetchAll(()=>sb.from('tm_servicios').select('*').order('updated_at',{ascending:false})),
     fetchAll(()=>sb.from('tm_refacciones').select('*')),
@@ -492,7 +511,7 @@ async function cargarTodo(){
   ]);
   servicios=s.data||[]; refs=r.data||[]; evis=e.data||[]; hist=h.data||[]; diags=d.data||[]; proveedores=pv.data||[];
   render(); renderProv(); if(activeId) abrir(activeId);
-  requestAnimationFrame(()=>window.scrollTo(0,_scrollY));
+  _devolverVista(_vista);
 }
 function suscribir(){
   sb.channel('tm-live')
@@ -1461,12 +1480,25 @@ async function setMO(id,val){
   okGuardado('btn-mo');
 }
 async function toggleTipoPieza(refId){
+  // Cambia el tipo SIN re-dibujar el panel: el boton y los totales se actualizan en su lugar.
   const r=refs.find(x=>x.id===refId); if(!r) return;
   const nuevo = (r.tipo_pieza==='electrica') ? 'mecanica' : 'electrica';
+  const btn=document.querySelector('#panel button[onclick="toggleTipoPieza(\''+refId+'\')"]');
+  if(btn) btn.disabled=true;
   const { error }=await sb.from('tm_refacciones').update({tipo_pieza:nuevo}).eq('id',refId);
+  if(btn) btn.disabled=false;
   if(error){ alert('No se pudo cambiar el tipo de pieza: '+error.message); return; }
   r.tipo_pieza=nuevo;
-  await cargarTodo(); if(activeId) abrir(activeId);
+  r.precio=Math.round((r.costo||0)*markupDe(r)*100)/100;
+  if(btn){
+    const elec = nuevo==='electrica';
+    const TXT = {mecanica:'Mecánica', electrica:'Eléctrica'};
+    btn.textContent = TXT[nuevo]+' '+Math.round((markupDe(r)-1)*100)+'%';
+    btn.style.background  = elec?'rgba(167,123,255,.16)':'rgba(95,139,255,.14)';
+    btn.style.color       = elec?'#c4a7ff':'#8fb0ff';
+    btn.style.borderColor = elec?'rgba(167,123,255,.45)':'rgba(95,139,255,.4)';
+  }
+  refrescarTotales(activeId);
 }
 async function addRefAdicional(id){
   const d=document.getElementById('adc-desc').value.trim();

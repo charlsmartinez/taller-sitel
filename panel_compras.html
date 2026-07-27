@@ -276,8 +276,27 @@ async function fetchAll(build){
   }
   return {data:out};
 }
+// --- La vista no se mueve al guardar ---------------------------------------
+// El scroll NO vive en la ventana: vive en el panel lateral y en la lista.
+// Por eso hay que recordar y devolver el scroll de esos contenedores.
+function _guardarVista(){
+  const p=document.getElementById('panel'), m=document.querySelector('.main');
+  return { panel: p?p.scrollTop:0, main: m?m.scrollTop:0, win: window.scrollY };
+}
+function _devolverVista(v){
+  const aplicar=()=>{
+    const p=document.getElementById('panel'), m=document.querySelector('.main');
+    if(p && v.panel) p.scrollTop=v.panel;
+    if(m && v.main)  m.scrollTop=v.main;
+    if(v.win) window.scrollTo(0,v.win);
+  };
+  aplicar();                                  // de inmediato
+  requestAnimationFrame(aplicar);             // tras re-dibujar
+  setTimeout(aplicar,60);                     // y tras acomodarse las imagenes
+}
+
 async function cargarTodo(){
-  const _scrollY = window.scrollY;   // no perder de vista lo que el usuario esta capturando
+  const _vista=_guardarVista();
   const [s,r,e]=await Promise.all([
     fetchAll(()=>sb.from('tm_servicios').select('*').eq('nuevo_flujo',true).in('estatus',VISIBLES).order('updated_at',{ascending:false})),
     fetchAll(()=>sb.from('tm_refacciones').select('*')),
@@ -285,7 +304,7 @@ async function cargarTodo(){
   ]);
   servicios=s.data||[]; refs=r.data||[]; evis=e.data||[]; hist=[];
   render(); if(activeId) abrir(activeId);
-  requestAnimationFrame(()=>window.scrollTo(0,_scrollY));
+  _devolverVista(_vista);
 }
 function suscribir(){
   sb.channel('tm-compras')
