@@ -452,6 +452,31 @@ function render(){
   });
 }
 
+// Casilla de archivo de factura, agrupada por proveedor.
+// Un mismo archivo cubre todas las piezas compradas al mismo proveedor.
+function slugProv(prov){
+  return (String(prov||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)) || 'proveedor';
+}
+function bloqueFactProv(sid, ids, prov, tipo, etiqueta, url){
+  const idsCsv=ids.join(',');
+  const slug=slugProv(prov);
+  const n=ids.length;
+  const cubre = n>1 ? ` <span style="color:var(--muted);font-weight:600;">(cubre ${n} piezas)</span>` : '';
+  if(!url){
+    return `<label class="up up-sm" style="flex:1;min-width:180px;">\uD83D\uDCCE Subir ${etiqueta}${cubre}<input type="file" style="display:none;" onchange="subirFactGrupo('${sid}','${idsCsv}','${slug}','${tipo}',this)"></label>`;
+  }
+  const nombre=(String(prov||'proveedor').replace(/[^a-zA-Z0-9\u00E1\u00E9\u00ED\u00F3\u00FA\u00C1\u00C9\u00CD\u00D3\u00DA\u00F1\u00D1 ]/g,'').trim().replace(/\s+/g,'_'))||'proveedor';
+  return `<div style="flex:1;min-width:180px;border:1px solid rgba(34,211,154,.45);background:rgba(34,211,154,.09);border-radius:10px;padding:9px 11px;">
+    <div style="font-size:10.5px;font-weight:800;color:#3fe0ad;margin-bottom:7px;">\u2713 ${etiqueta.toUpperCase()} GUARDADO${n>1?` \u00b7 ${n} PIEZAS`:''}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <a href="${url}" target="_blank" rel="noopener" class="btn-sm" style="text-decoration:none;padding:5px 10px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">\uD83D\uDC41\uFE0F Ver</a>
+      <a href="${url}" download="${nombre}_${tipo}" class="btn-sm" style="text-decoration:none;padding:5px 10px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">\u2B07\uFE0F Descargar</a>
+      <label class="btn-sm" style="padding:5px 10px;font-size:11px;cursor:pointer;background:rgba(255,255,255,.07);color:var(--muted);border:1px solid var(--line);border-radius:7px;margin:0;">\u21BB Reemplazar<input type="file" style="display:none;" onchange="subirFactGrupo('${sid}','${idsCsv}','${slug}','${tipo}',this)"></label>
+    </div>
+  </div>`;
+}
+
 function abrir(id){
   activeId=id; const s=servicios.find(x=>x.id===id); if(!s) return;
   const p=document.getElementById('panel');
@@ -464,22 +489,6 @@ function abrir(id){
     border-bottom:2px solid ${i<idx?'#22d39a':(i===idx?'#f5b800':'rgba(255,255,255,.1)')};">${NUM[st]}. ${CORTO[st]}</div>`).join('');
 
   const CHIP_OK='<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>';
-
-  // Bloque de un archivo: si ya está, se puede abrir, descargar o reemplazar
-  const bloqueArchivo=(sid, r, tipo, etiqueta, url)=>{
-    if(!url){
-      return `<label class="up up-sm" style="flex:1;min-width:170px;">📎 Subir ${etiqueta}<input type="file" style="display:none;" onchange="subirFactRef('${sid}','${r.id}','${tipo}',this)"></label>`;
-    }
-    const nombre=(r.descripcion||'pieza').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'').trim().replace(/\s+/g,'_');
-    return `<div style="flex:1;min-width:170px;border:1px solid rgba(34,211,154,.45);background:rgba(34,211,154,.09);border-radius:10px;padding:9px 11px;">
-      <div style="font-size:10.5px;font-weight:800;color:#3fe0ad;margin-bottom:7px;">✓ ${etiqueta.toUpperCase()} GUARDADO</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <a href="${url}" target="_blank" rel="noopener" class="btn-sm" style="text-decoration:none;padding:5px 10px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">👁️ Ver</a>
-        <a href="${url}" download="${nombre}_${tipo}" class="btn-sm" style="text-decoration:none;padding:5px 10px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">⬇️ Descargar</a>
-        <label class="btn-sm" style="padding:5px 10px;font-size:11px;cursor:pointer;background:rgba(255,255,255,.07);color:var(--muted);border:1px solid var(--line);border-radius:7px;margin:0;">↻ Reemplazar<input type="file" style="display:none;" onchange="subirFactRef('${sid}','${r.id}','${tipo}',this)"></label>
-      </div>
-    </div>`;
-  };
 
   const filaRef=(r)=>{
     const pdfKey='factura_refaccion_pdf_'+r.id, xmlKey='factura_refaccion_xml_'+r.id;
@@ -506,9 +515,8 @@ function abrir(id){
         <button class="btn-sm" id="gc-${r.id}" style="background:${guardado?'#12a878':'linear-gradient(135deg,#22d39a,#12a878)'};color:#04120c;border:0;font-weight:800;" onclick="guardarCostoFinal('${r.id}')">${guardado?'✓ Guardado':'Guardar'}</button>
         <span id="chip-${r.id}" style="display:${guardado?'inline-flex':'none'};align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>
       </div>
-      <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;">
-        ${bloqueArchivo(id, r, 'pdf', 'factura', urlPDF)}
-        ${bloqueArchivo(id, r, 'xml', 'XML / comprobante', urlXML)}
+      <div style="font-size:10.5px;margin-top:9px;color:${(tienePDF&&tieneXML)?'#3fe0ad':'var(--muted)'};font-weight:700;">
+        ${(tienePDF&&tieneXML)?'\u2713 Factura y XML cargados m\u00e1s abajo, en su proveedor':'\uD83E\uDDFE Su factura se sube abajo, agrupada por proveedor'}
       </div>
     </div>`;
   };
@@ -518,6 +526,49 @@ function abrir(id){
   const refsHtml = misRefs.length
     ? datalistProv + misRefs.map(filaRef).join('')
     : '<div style="color:#8b93b8;padding:10px 0;">Esta orden no tiene refacciones capturadas.</div>';
+
+  // --- Facturas agrupadas por proveedor -----------------------------------
+  // Si varias piezas se compraron al mismo proveedor, basta un archivo para todas.
+  const refsFact = misRefs.filter(r=>r.requiere_factura!==false);
+  const grupos = new Map();
+  refsFact.forEach(r=>{
+    const nombreProv=(r.proveedor||'').trim();
+    const clave=nombreProv.toLowerCase();
+    if(!grupos.has(clave)) grupos.set(clave,{prov:nombreProv, refs:[]});
+    grupos.get(clave).refs.push(r);
+  });
+  const cardsProv=[...grupos.values()].map(g=>{
+    const piezas=g.refs.map(r=>r.descripcion||'pieza').join(', ');
+    if(!g.prov){
+      return `<div style="border:1px dashed rgba(245,184,0,.45);background:rgba(245,184,0,.07);border-radius:11px;padding:12px 14px;margin-bottom:9px;">
+        <div style="font-size:12px;font-weight:800;color:#ffd75e;">Captura primero el proveedor</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Sin proveedor no se puede agrupar la factura de: ${piezas}</div>
+      </div>`;
+    }
+    const ids=g.refs.map(r=>r.id);
+    const evsOrden=evisDe(id);
+    const buscar=(t)=>{ const e=evsOrden.find(x=>x.tipo==='factura_refaccion_'+t+'_'+ids[0]); return e?e.url:''; };
+    const todas=(t)=>ids.every(i=>evsOrden.some(x=>x.tipo==='factura_refaccion_'+t+'_'+i));
+    const urlP=todas('pdf')?buscar('pdf'):'';
+    const urlX=todas('xml')?buscar('xml'):'';
+    const listo=!!urlP&&!!urlX;
+    return `<div style="border:1px solid ${listo?'rgba(34,211,154,.45)':'var(--line)'};background:${listo?'rgba(34,211,154,.06)':'#12142b'};border-radius:11px;padding:12px 14px;margin-bottom:9px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:800;font-size:14px;color:var(--ink);">\uD83C\uDFEA ${g.prov}</div>
+        <div style="font-size:11px;color:var(--muted);">${g.refs.length} pieza(s)</div>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:3px;">${piezas}</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        ${bloqueFactProv(id, ids, g.prov, 'pdf', 'factura', urlP)}
+        ${bloqueFactProv(id, ids, g.prov, 'xml', 'XML / comprobante', urlX)}
+      </div>
+    </div>`;
+  }).join('');
+  const facturasHtml = refsFact.length
+    ? `<div class="sect-h">\uD83E\uDDFE Facturas por proveedor</div>
+       <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Un solo archivo cubre todas las piezas del mismo proveedor. Si hay proveedores distintos, sube el archivo de cada uno.</div>
+       ${cardsProv}`
+    : '';
 
   const faltaCosto=misRefs.filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   const faltaFact=misRefs.filter(r=>{
@@ -577,8 +628,9 @@ function abrir(id){
     <h2 style="clear:both;">🛒 ${s.economico||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${[s.marca,s.modelo].filter(Boolean).join(' ')}</span></h2>
     <div style="display:flex;gap:3px;margin:16px 0;flex-wrap:wrap;">${pipe}</div>
     ${alerta}
-    <div class="sect-h">Refacciones — costo real y archivos</div>
+    <div class="sect-h">Refacciones — costo real y proveedor</div>
     ${refsHtml}
+    ${facturasHtml}
     <div class="sect-h">Datos de la unidad</div>
     <div class="info">
       <div><div class="l">Económico</div><div class="vv" style="color:var(--cyan);font-weight:800;">${s.economico||'—'}</div></div>
@@ -669,31 +721,37 @@ function actualizarResumen(){
   const aviso=document.getElementById('aviso-falta');
   if(aviso) aviso.style.display = falta>0 ? '' : 'none';
 }
-async function subirFactRef(servId, refId, tipo, input){
+async function subirFactGrupo(servId, idsCsv, slug, tipo, input){
   const f=input.files&&input.files[0]; if(!f) return;
+  const ids=String(idsCsv).split(',').filter(Boolean);
+  if(!ids.length) return;
   const cont=input.parentElement;
   const original=cont.innerHTML;
   cont.innerHTML='<span class="spin"></span> Subiendo...';
   try{
-    const evTipo='factura_refaccion_'+tipo+'_'+refId;
-    // Se acepta cualquier tipo de archivo: se conserva su extensión original
+    // El archivo se guarda UNA sola vez, con el nombre del proveedor
     const punto=f.name.lastIndexOf('.');
     const ext=(punto>0? f.name.slice(punto+1) : 'dat').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8) || 'dat';
-    const path=`${servId}/${evTipo}.${ext}`;
+    const path=servId+'/factura_prov_'+slug+'_'+tipo+'.'+ext;
     const { error:eu }=await sb.storage.from('tm-evidencias').upload(path,f,{upsert:true,contentType:f.type||'application/octet-stream'});
     if(eu) throw eu;
     const { data:{ publicUrl } }=sb.storage.from('tm-evidencias').getPublicUrl(path);
     const url=publicUrl+'?v='+Date.now();
-    const ya=evis.find(e=>e.servicio_id===servId&&e.tipo===evTipo);
-    if(ya) await sb.from('tm_evidencias').update({url}).eq('id',ya.id);
-    else await sb.from('tm_evidencias').insert({servicio_id:servId,tipo:evTipo,url});
-    const r=refs.find(x=>x.id===refId);
-    registrarHistorial(servId, 'Compras subió archivo de factura: '+((r&&r.descripcion)||'pieza'));
-    if(ya) ya.url=url; else evis.push({servicio_id:servId,tipo:evTipo,url});
-    // Se repinta solo ese archivo, el panel se queda quieto
-    cont.outerHTML = bloqueArchivo(servId, r||{id:refId,descripcion:''}, tipo, tipo==='pdf'?'factura':'XML / comprobante', url);
+    // ...y queda ligado a cada pieza de ese proveedor, para que no falte ninguna
+    for(const refId of ids){
+      const evTipo='factura_refaccion_'+tipo+'_'+refId;
+      const ya=evis.find(e=>e.servicio_id===servId&&e.tipo===evTipo);
+      if(ya){ await sb.from('tm_evidencias').update({url}).eq('id',ya.id); ya.url=url; }
+      else { await sb.from('tm_evidencias').insert({servicio_id:servId,tipo:evTipo,url}); evis.push({servicio_id:servId,tipo:evTipo,url}); }
+    }
+    const r0=refs.find(x=>x.id===ids[0]);
+    const prov=(r0&&r0.proveedor)||'proveedor';
+    registrarHistorial(servId, 'Compras subio '+(tipo==='pdf'?'la factura':'el XML')+' de '+prov+' ('+ids.length+' pieza(s))');
+    // Se repinta solo esta casilla: el panel no se mueve
+    cont.outerHTML = bloqueFactProv(servId, ids, prov, tipo, tipo==='pdf'?'factura':'XML / comprobante', url);
   }catch(e){ alert('Error al subir: '+(e.message||e)); cont.innerHTML=original; }
 }
+
 async function avanzarAReparacion(id){
   const s=servicios.find(x=>x.id===id); if(!s) return;
   const pendientes=refsDe(id).filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
