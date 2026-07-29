@@ -347,7 +347,7 @@ const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  refacciones_compradas:'piezas cambiadas (nuevas)',
  refacciones_montadas:'piezas montadas',
  unidad_lista:'foto de la unidad lista para entrega',correo_ot:'foto del correo con la OT',
- correo_ot_cliente:'correo de la OT enviado por el cliente',
+ correo_ot_cliente:'PDF de la OT (o foto del formato)',
  formato_entrega_firmado:'formato de entrega firmado',
  identificacion_receptor:'identificación de quien recibe la unidad',
  correo_recepcion_ot:'correo de recepción de la OT en contabilidad',
@@ -956,7 +956,7 @@ function abrir(id){
     </div>`:''}
 
     <div class="sect-h">Refacciones y costos</div>
-    ${datalistProv}<table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:center;">Tipo</th><th>Proveedor</th><th style="text-align:right;">Costo nuestro</th><th style="text-align:right;">Precio cliente</th>${editable?'<th></th>':''}</tr></thead><tbody>${partsRows}</tbody></table>
+    ${datalistProv}<table class="ptable"><thead><tr><th>Descripción</th><th style="text-align:center;">Cant.</th><th style="text-align:center;">Tipo</th><th>Proveedor</th><th style="text-align:right;white-space:normal;line-height:1.2;min-width:84px;">Costo unitario nuestro<div style="font-size:8.5px;font-weight:700;letter-spacing:.3px;color:var(--cyan);text-transform:none;margin-top:2px;">(con IVA)</div></th><th style="text-align:right;">Precio cliente</th>${editable?'<th></th>':''}</tr></thead><tbody>${partsRows}</tbody></table>
     ${refsCerradas?'<div style="font-size:11px;color:var(--muted);margin-top:7px;">🔒 Las refacciones cotizadas ya no se modifican desde este paso. Si surge una pieza no contemplada, agrégala como <b>refacción adicional</b>.</div>':''}
     ${editRef?`<div style="display:grid;grid-template-columns:2fr 70px 100px 80px;gap:8px;margin-top:10px;">
       <input type="text" id="nr-desc" placeholder="Nueva refacción" style="margin:0;">

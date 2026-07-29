@@ -499,8 +499,12 @@ function abrir(id){
           <label style="font-size:10px;">Costo final (real)</label>
           <input type="number" step="0.01" id="cf-${r.id}" value="${cf}" placeholder="$ real de la pieza" style="margin:0;" oninput="reactivar('gc-${r.id}')">
         </div>
-        <button class="btn-sm" id="gc-${r.id}" style="background:${guardado?'#12a878':'linear-gradient(135deg,#22d39a,#12a878)'};color:#04120c;border:0;font-weight:800;" onclick="guardarCostoFinal('${r.id}')">${guardado?'✓ Guardado':'Guardar costo'}</button>
-        <span id="chip-${r.id}" style="display:${guardado?'inline-flex':'none'};align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Costo guardado</span>
+        <div style="flex:1.2;min-width:150px;">
+          <label style="font-size:10px;">🏪 Proveedor <span style="color:var(--muted);font-weight:600;">(a quién se le paga)</span></label>
+          <input type="text" list="prov-compras" id="pv-${r.id}" value="${(r.proveedor||'').replace(/"/g,'&quot;')}" placeholder="Nombre del proveedor" style="margin:0;" oninput="reactivar('gc-${r.id}')">
+        </div>
+        <button class="btn-sm" id="gc-${r.id}" style="background:${guardado?'#12a878':'linear-gradient(135deg,#22d39a,#12a878)'};color:#04120c;border:0;font-weight:800;" onclick="guardarCostoFinal('${r.id}')">${guardado?'✓ Guardado':'Guardar'}</button>
+        <span id="chip-${r.id}" style="display:${guardado?'inline-flex':'none'};align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;">
         ${bloqueArchivo(id, r, 'pdf', 'factura', urlPDF)}
@@ -509,11 +513,13 @@ function abrir(id){
     </div>`;
   };
 
+  const provUsados=[...new Set(refs.map(r=>(r.proveedor||'').trim()).filter(Boolean))].sort();
+  const datalistProv=`<datalist id="prov-compras">${provUsados.map(x=>`<option value="${x.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
   const refsHtml = misRefs.length
-    ? misRefs.map(filaRef).join('')
+    ? datalistProv + misRefs.map(filaRef).join('')
     : '<div style="color:#8b93b8;padding:10px 0;">Esta orden no tiene refacciones capturadas.</div>';
 
-  const faltaCosto=misRefs.filter(r=>!r.es_adicional && r.costo_final==null).length;
+  const faltaCosto=misRefs.filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   const faltaFact=misRefs.filter(r=>{
     const pdf=evisDe(id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
     const xml=evisDe(id).some(e=>e.tipo==='factura_refaccion_xml_'+r.id);
@@ -521,7 +527,7 @@ function abrir(id){
   }).length;
   const alerta = (faltaCosto||faltaFact)
     ? `<div class="gate" style="background:rgba(245,184,0,.1);border-color:rgba(245,184,0,.35);color:#ffd75e;">
-        ${faltaCosto?`Falta capturar el <b>costo final</b> de ${faltaCosto} refacción(es) — sin esto la orden no avanza a Reparación.<br>`:''}
+        ${faltaCosto?`Falta capturar el <b>costo final y el proveedor</b> de ${faltaCosto} refacción(es) — sin esto la orden no avanza a Reparación.<br>`:''}
         ${faltaFact?`Faltan <b>archivos de factura</b> de ${faltaFact} refacción(es). Puedes subirlos después: la orden se queda aquí hasta completarlos.`:''}
       </div>`
     : `<div class="gate ok">✓ Todas las refacciones tienen costo final y sus archivos.</div>`;
@@ -532,9 +538,9 @@ function abrir(id){
   const botonAvance = enCompras
     ? `<div style="margin:16px 0;padding:14px;border-radius:12px;background:rgba(34,211,154,.06);border:1px solid rgba(34,211,154,.25);">
         <div style="font-size:11px;font-weight:900;color:#3fe0ad;letter-spacing:.5px;margin-bottom:8px;">AVANZAR EL FLUJO</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Cuando ya capturaste el costo real de todas las piezas, manda la orden a Reparación. Los archivos de factura los puedes subir después.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Cuando ya capturaste el costo real y el proveedor de todas las piezas, manda la orden a Reparación. Los archivos de factura los puedes subir después.</div>
         <button class="btn-adv" id="btn-avanzar" ${puedeAvanzar?'':'disabled'} onclick="avanzarAReparacion('${id}')">Avanzar a REPARACIÓN →</button>
-        <div id="aviso-falta" style="display:${puedeAvanzar?'none':''};font-size:11px;color:#ffd75e;margin-top:8px;">Captura primero el costo final de todas las piezas.</div>
+        <div id="aviso-falta" style="display:${puedeAvanzar?'none':''};font-size:11px;color:#ffd75e;margin-top:8px;">Captura primero el costo final y el proveedor de todas las piezas.</div>
       </div>`
     : '';
 
@@ -571,14 +577,26 @@ function abrir(id){
     <h2 style="clear:both;">🛒 ${s.economico||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${[s.marca,s.modelo].filter(Boolean).join(' ')}</span></h2>
     <div style="display:flex;gap:3px;margin:16px 0;flex-wrap:wrap;">${pipe}</div>
     ${alerta}
-    <div class="info">
-      <div><div class="l">COT</div><div class="vv">${s.cot||'—'}</div></div>
-      <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
-      <div><div class="l">Plaza</div><div class="vv">${s.plaza||'—'}</div></div>
-      <div><div class="l">Estatus</div><div class="vv">${NUM[s.estatus]}. ${CORTO[s.estatus]}</div></div>
-    </div>
     <div class="sect-h">Refacciones — costo real y archivos</div>
     ${refsHtml}
+    <div class="sect-h">Datos de la unidad</div>
+    <div class="info">
+      <div><div class="l">Económico</div><div class="vv" style="color:var(--cyan);font-weight:800;">${s.economico||'—'}</div></div>
+      <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
+      <div><div class="l">COT</div><div class="vv">${s.cot||'—'}</div></div>
+      <div><div class="l">No. Factura</div><div class="vv">${s.num_factura||'—'}</div></div>
+      <div><div class="l">Fecha de pago</div><div class="vv">${s.fecha_pago||'—'}</div></div>
+      <div><div class="l">Plaza</div><div class="vv">${s.plaza||'—'}</div></div>
+      <div><div class="l">COPE</div><div class="vv">${s.cope||'—'}</div></div>
+      <div><div class="l">Marca / Modelo</div><div class="vv">${[s.marca,s.modelo].filter(Boolean).join(' ')||'—'}</div></div>
+      <div><div class="l">Año</div><div class="vv">${s.anio||'—'}</div></div>
+      <div><div class="l">Placas</div><div class="vv">${s.placas||'—'}</div></div>
+      <div><div class="l">Serie (VIN)</div><div class="vv">${s.serie||'—'}</div></div>
+      <div><div class="l">Kilometraje</div><div class="vv">${s.kilometraje||'—'}</div></div>
+      <div><div class="l">Mecánico</div><div class="vv">${s.mecanico||'—'}</div></div>
+      <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
+      <div><div class="l">Estatus</div><div class="vv" style="color:${COLOR[s.estatus]||'#fff'};">${NUM[s.estatus]}. ${CORTO[s.estatus]}</div></div>
+    </div>
     ${botonAvance}
     ${archivosHtml}
     <div class="money" style="grid-template-columns:1fr 1fr;">
@@ -618,12 +636,15 @@ async function guardarCostoFinal(refId){
   if(v===''){ alert('Escribe el costo final de la refacción.'); return; }
   const costo=parseFloat(v);
   if(isNaN(costo)||costo<0){ alert('El costo final debe ser un número válido (no negativo).'); return; }
-  const { error }=await sb.from('tm_refacciones').update({costo_final:costo}).eq('id',refId);
+  const inpProv=document.getElementById('pv-'+refId);
+  const prov=inpProv?inpProv.value.trim():'';
+  if(prov===''){ alert('Escribe el proveedor: es el dato de a quién se le va a pagar.'); if(inpProv) inpProv.focus(); return; }
+  const { error }=await sb.from('tm_refacciones').update({costo_final:costo, proveedor:prov}).eq('id',refId);
   if(error){ alert('No se pudo guardar: '+error.message); return; }
   const r=refs.find(x=>x.id===refId);
   if(r){
-    r.costo_final=costo;
-    registrarHistorial(r.servicio_id, 'Compras capturó costo real: '+(r.descripcion||'pieza')+' — $'+costo.toFixed(2));
+    r.costo_final=costo; r.proveedor=prov;
+    registrarHistorial(r.servicio_id, 'Compras capturó costo real y proveedor: '+(r.descripcion||'pieza')+' — $'+costo.toFixed(2)+' · '+prov);
   }
   // Se marca el guardado en su sitio: el panel no se re-dibuja ni se mueve
   okGuardado('gc-'+refId);
@@ -642,7 +663,7 @@ function actualizarResumen(){
   const tc=document.getElementById('tot-cot'), tr=document.getElementById('tot-real');
   if(tc) tc.textContent=fmt(cot);
   if(tr) tr.textContent=fmt(real);
-  const falta=rs.filter(r=>!r.es_adicional && r.costo_final==null).length;
+  const falta=rs.filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   const btn=document.getElementById('btn-avanzar');
   if(btn){ btn.disabled = falta>0; }
   const aviso=document.getElementById('aviso-falta');
@@ -675,7 +696,7 @@ async function subirFactRef(servId, refId, tipo, input){
 }
 async function avanzarAReparacion(id){
   const s=servicios.find(x=>x.id===id); if(!s) return;
-  const pendientes=refsDe(id).filter(r=>!r.es_adicional && r.costo_final==null).length;
+  const pendientes=refsDe(id).filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   if(pendientes){ alert('Falta capturar el costo final de '+pendientes+' refacción(es).'); return; }
   if(!confirm('¿Mandar la orden '+(s.economico||'')+' a REPARACIÓN?\n\nLos archivos de factura los puedes subir después: la orden seguirá apareciendo en tu panel hasta que estén completos.')) return;
   const { error }=await sb.from('tm_servicios').update({estatus:'Reparado'}).eq('id',id);

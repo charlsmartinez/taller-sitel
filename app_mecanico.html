@@ -462,9 +462,15 @@ function abrirReparacion(id){
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px;">${lista.map(x=>{
       const ya=t.has(x.k); const n=cnt[x.k]||0;
       return `<label style="border:1.5px dashed ${ya?'rgba(34,211,154,.5)':'var(--line)'};background:${ya?'rgba(34,211,154,.08)':'#12142b'};border-radius:11px;padding:11px 9px;text-align:center;font-size:11.5px;font-weight:700;color:${ya?'#22d39a':'var(--ink)'};cursor:pointer;display:block;">
-        ${ya?'✓':(x.multi?'📷+':'📷')} ${x.n}${(x.multi&&n>0)?` <span style="opacity:.85;">(${n})</span>`:''}
+        ${ya?'✓':'📷'} ${x.n}
         ${x.multi
-            ? `<div style="font-size:9.5px;font-weight:600;color:${ya?'#3fe0ad':'var(--muted)'};margin-top:3px;">${ya?'✓ Guardadas · toca para agregar más':'puedes subir varias'}</div>`
+            ? `<div style="margin-top:7px;border-radius:9px;padding:7px 6px;font-size:11px;font-weight:800;
+                        background:${ya?'rgba(34,211,154,.16)':'rgba(0,208,230,.14)'};
+                        border:1px solid ${ya?'rgba(34,211,154,.45)':'rgba(0,208,230,.45)'};
+                        color:${ya?'#3fe0ad':'#7ee8f2'};">➕ ${ya?'Agregar otra':'Subir fotos'}</div>
+               <div style="font-size:9.5px;font-weight:600;color:var(--muted);margin-top:4px;">${ya
+                    ? `${n} ${n===1?'foto subida':'fotos subidas'} · puedes seguir agregando`
+                    : 'puedes subir todas las que necesites'}</div>`
             : (ya?'<div style="font-size:9.5px;font-weight:600;color:#3fe0ad;margin-top:3px;">✓ Guardada · toca para volver a tomarla</div>':'')}
         <input type="file" accept="image/*" ${x.multi?'multiple':''} style="display:none;" onchange="subirRep('${id}','${x.k}',this)">
       </label>`;}).join('')}</div>`;
