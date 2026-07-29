@@ -39,6 +39,10 @@ textarea{ min-height:80px; resize:vertical; }
 .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 /* Diagnósticos */
 .diag{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+.modo{ display:flex; gap:8px; margin:10px 0 12px; }
+.modo button{ flex:1; font-size:13px; font-weight:800; padding:11px 8px; border-radius:12px; cursor:pointer;
+              border:1.5px solid var(--line); background:rgba(255,255,255,.03); color:#c3cae8; transition:.15s; }
+.modo button.on{ border-color:rgba(0,208,230,.55); background:rgba(0,208,230,.14); color:#7ee8f2; }
 .chip{ font-size:12.5px; font-weight:600; padding:9px 13px; border-radius:999px; border:1.5px solid var(--line); background:rgba(255,255,255,.03); color:#c3cae8; cursor:pointer; transition:.15s; user-select:none; }
 .chip.on{ background:linear-gradient(135deg,rgba(0,208,230,.25),rgba(95,139,255,.18)); border-color:var(--cyan); color:#fff; }
 /* Refacciones */
@@ -195,6 +199,10 @@ textarea{ min-height:80px; resize:vertical; }
   <div class="card">
     <h2>Evidencia fotográfica (7)</h2>
     <div class="hint">Las 7 son obligatorias. Toca una foto para volver a tomarla.</div>
+    <div class="modo">
+      <button type="button" id="modo-cam" onclick="setModoFoto(true)">📷 Tomar con cámara</button>
+      <button type="button" id="modo-gal" onclick="setModoFoto(false)">🖼️ Elegir de galería</button>
+    </div>
     <div class="fotos" id="fotos"></div>
   </div>
 
@@ -230,6 +238,19 @@ const TIPOS = [
 ];
 let fotos = {}, extras = [], profile = null, diagSel = new Set(), refsTmp = [], otroOn = false;
 
+// --- Origen de las fotos: camara o galeria -------------------------------
+// Algunos celulares solo abren la galeria si el campo no pide camara expresamente,
+// y otros solo abren la camara si la pide. Por eso el mecanico elige el origen.
+let modoCam = true;   // por defecto: camara
+function aplicarModoFoto(){
+  document.querySelectorAll('input[type=file][accept^="image"]').forEach(i=>{
+    if(modoCam) i.setAttribute('capture','environment'); else i.removeAttribute('capture');
+  });
+  document.querySelectorAll('#modo-cam,#modo-cam-rep').forEach(b=>b.classList.toggle('on',modoCam));
+  document.querySelectorAll('#modo-gal,#modo-gal-rep').forEach(b=>b.classList.toggle('on',!modoCam));
+}
+function setModoFoto(cam){ modoCam=cam; aplicarModoFoto(); }
+
 const fotosEl = document.getElementById('fotos');
 TIPOS.forEach(t => {
   const d = document.createElement('label'); d.className='foto'; d.id='slot-'+t.k;
@@ -237,6 +258,7 @@ TIPOS.forEach(t => {
     <input type="file" accept="image/*" onchange="onFoto('${t.k}', this)">`;
   fotosEl.appendChild(d);
 });
+aplicarModoFoto();
 
 function renderExtras(){
   const g=document.getElementById('extras-grid'); g.innerHTML='';
@@ -248,6 +270,7 @@ function renderExtras(){
   const add=document.createElement('label'); add.className='foto'; add.style.minHeight='120px';
   add.innerHTML=`<span class="emoji">➕</span><span class="lbl">Subir foto de pieza dañada</span><input type="file" accept="image/*" multiple onchange="onExtra(this)">`;
   g.appendChild(add);
+  aplicarModoFoto();
 }
 async function onExtra(input){ const files=Array.from(input.files||[]); if(!files.length) return; for(const f of files){ extras.push(await comprimir(f)); } renderExtras(); }
 function removeExtra(i){ extras.splice(i,1); renderExtras(); }
@@ -448,6 +471,10 @@ function abrirReparacion(id){
   det.innerHTML=`<div class="card">
     <h2>${o.economico||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${[o.marca,o.modelo].filter(Boolean).join(' ')}</span></h2>
     <div class="hint">${o.diagnosticos||''}</div>
+    <div class="modo">
+      <button type="button" id="modo-cam-rep" onclick="setModoFoto(true)">📷 Tomar con cámara</button>
+      <button type="button" id="modo-gal-rep" onclick="setModoFoto(false)">🖼️ Elegir de galería</button>
+    </div>
     ${bloque('Refacciones', EV_REP.slice(0,3))}
     ${bloque('Fotos de la unidad lista', EV_REP.slice(3))}
     <div class="msg" id="rep-msg" style="margin-top:12px;"></div>
@@ -456,6 +483,7 @@ function abrirReparacion(id){
       <button class="btn btn-ghost" style="margin:0;" onclick="cerrarReparacion()">Elegir otra unidad</button>
     </div>
   </div>`;
+  aplicarModoFoto();
   det.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function terminarReparacion(id){
