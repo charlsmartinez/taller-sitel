@@ -293,6 +293,7 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script>
 const SUPABASE_URL='https://weggfkvhjtxbzihgetzu.supabase.co';
 const SUPABASE_KEY='sb_publishable_ErvGJRqEMKRC9FdJuZ9mig_Bb7vOFxT';
@@ -1554,98 +1555,174 @@ async function eliminarServicio(id,eco){
   await cargarTodo();
 }
 
-function exportarExcel(){
+// ===== Reporte con el formato del archivo maestro de la empresa =====
+// Un renglon por refaccion. La mano de obra va solo en el primer renglon de
+// cada orden, para que las sumas de las tablas dinamicas no se dupliquen.
+const EST_MAESTRO={
+  'Diagnóstico':'1 DIAGNOSTICO',
+  'Cotización':'2 EN COTIZACION',
+  'Autorizado':'4 AUTORIZADO',
+  'Compra de Refacciones y Reparación':'5 EN REPARACION Y COMPRA DE REFACCIONES',
+  'Reparado':'6 REPARADO',
+  'Pendiente de OT':'7 PENDIENTE DE OT',
+  'Auto Entregado':'9 ENVIO DE OT A CONTABILIDAD',
+  'Pendiente de Factura':'10 PENDIENTE DE FACTURA',
+  'Contabilidad Emitió Factura':'11 FACTURA EMITIDA',
+  'Se Envía Factura a Telmex':'12 FINALIZADO / FACTURA ENVIADA A TELMEX',
+  'Factura Pagada':'13 FACTURA PAGADA',
+  'No Autorizado / Rechazado':'A NO AUTORIZADO / RECHAZADO',
+  'Garantía':'B GARANTIA'
+};
+const ORDEN_EST=['2 EN COTIZACION','3 PENDIENTE DE AUTORIZACION','4 AUTORIZADO','5 EN REPARACION Y COMPRA DE REFACCIONES',
+  '6 REPARADO','7 PENDIENTE DE OT','9 ENVIO DE OT A CONTABILIDAD','10 PENDIENTE DE FACTURA','11 FACTURA EMITIDA',
+  '12 FINALIZADO / FACTURA ENVIADA A TELMEX','13 FACTURA PAGADA','A NO AUTORIZADO / RECHAZADO','B GARANTIA','1 DIAGNOSTICO'];
+function estGeneral(e){
+  if(e==='No Autorizado / Rechazado') return 'NO AUTORIZADO / RECHAZADO';
+  if(e==='Se Envía Factura a Telmex'||e==='Factura Pagada') return 'FACTURA ENTREGADA';
+  if(e==='Pendiente de Factura'||e==='Contabilidad Emitió Factura') return 'EN FACTURACION';
+  return 'EN PROCESO';
+}
+// Fecha en que la orden entro a cierto paso (sale del historial)
+function fechaPaso(sid, paso){
+  const h=hist.filter(x=>x.servicio_id===sid && (x.estatus||'').indexOf(paso)===0)
+              .sort((a,b)=>new Date(a.fecha)-new Date(b.fecha))[0];
+  return h?new Date(h.fecha):null;
+}
+const _fec=v=>{ if(!v) return null; const d=new Date(v); return isNaN(d)?null:d; };
+
+async function exportarExcel(){
+  if(typeof ExcelJS==='undefined'){ alert('No se pudo cargar el generador de Excel. Revisa tu conexión y vuelve a intentar.'); return; }
   const fp=document.getElementById('f-plaza').value, fe=document.getElementById('f-est').value;
   const fb=(document.getElementById('f-buscar').value||'').trim().toLowerCase();
-  const rows=servicios.filter(s=>{
+  const ordenes=servicios.filter(s=>{
     const mP=fp==='Todos'||norm(s.plaza)===norm(fp);
     const mE=fe==='Todos'||s.estatus===fe;
     const blob=[s.economico,s.ot,s.cot,s.serie,s.placas,s.vehiculo,s.conductor].join(' ').toLowerCase();
     return mP&&mE&&(!fb||blob.includes(fb));
-  }).sort((a,b)=> new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
-  if(!rows.length){ alert('No hay registros que exportar.'); return; }
-  const plazaLabel=fp==='Todos'?'Todas las plazas':fp;
-  const he=v=>(v===undefined||v===null?'':v.toString()).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const dinero=true;              // el desglose de montos lo ven todos
-  const verUtilidad=veDinero();   // la utilidad, solo gerencia/contabilidad
-  const headers=['ECONOMICO','OT','COT','PLAZA','MARCA','MODELO','AÑO','PLACAS','SERIE','KM','CONDUCTOR','MECANICO','DIAGNOSTICO','ESTATUS','DIAS EN PASO']
-    .concat(['COSTO PIEZAS','PIEZAS +'+Math.round((CFG.markup_piezas-1)*100)+'%','MANO DE OBRA','SUBTOTAL','IVA','TOTAL C/IVA'])
-    .concat(verUtilidad?['UTILIDAD']:[])
-    .concat(['REFACCIONES','INGRESO','No. FACTURA','FECHA PAGO']);
-  let tc=0,tp=0,tm=0,tsub=0,tiva=0,tv=0,tu=0,body='';
-  const porEstatus={}, porPlaza={};
-  rows.forEach(s=>{
-    const t=totales(s); tc+=t.costo; tp+=t.piezasCliente; tm+=t.mo; tsub+=t.subtotal; tiva+=t.iva; tv+=t.total; tu+=t.utilidad;
-    porEstatus[s.estatus]=porEstatus[s.estatus]||{n:0,sub:0,tot:0,util:0};
-    porEstatus[s.estatus].n++; porEstatus[s.estatus].sub+=t.subtotal; porEstatus[s.estatus].tot+=t.total; porEstatus[s.estatus].util+=t.utilidad;
-    porPlaza[s.plaza]=porPlaza[s.plaza]||{n:0,tot:0,util:0};
-    porPlaza[s.plaza].n++; porPlaza[s.plaza].tot+=t.total; porPlaza[s.plaza].util+=t.utilidad;
-    const det=refsDe(s.id).map(p=>`${p.cantidad}x ${p.descripcion}`).join(' | ');
-    let c=[s.economico,s.ot,s.cot,s.plaza,s.marca,s.modelo,s.anio,s.placas,s.serie,s.kilometraje,s.conductor,s.mecanico,s.diagnosticos||s.falla,s.estatus,diasEnPaso(s)];
-    c=c.concat([t.costo.toFixed(2),t.piezasCliente.toFixed(2),t.mo.toFixed(2),t.subtotal.toFixed(2),t.iva.toFixed(2),t.total.toFixed(2)]);
-    if(verUtilidad) c=c.concat([t.utilidad.toFixed(2)]);
-    c=c.concat([det,s.fecha_recepcion,s.num_factura||'',s.fecha_pago||'']);
-    body+='<tr>'+c.map(x=>`<td style="border:1px solid #cfd6e4;padding:5px 7px;mso-number-format:'\\@';">${he(x)}</td>`).join('')+'</tr>';
+  }).sort((a,b)=>String(a.cot||'').localeCompare(String(b.cot||''),'es',{numeric:true}));
+  if(!ordenes.length){ alert('No hay registros que exportar.'); return; }
+
+  const AZUL='FF156082', GRIS='FF8694A0', VERDE='FFA3C4A7', AMAR='FFFFFF00';
+  const MONEDA='_-"$"* #,##0.00_-;\\-"$"* #,##0.00_-;_-"$"* "-"??_-;_-@_-';
+  const FECHA='mm-dd-yy';
+  const COLS=[
+    ['FOLIO COTIZACION',14.6,AZUL],['FECHA RECEPCION',10.9,GRIS],['NUMERO DE SERIE',13.8,AZUL],['MARCA',12.3,AZUL],
+    ['MODELO',10.3,AZUL],['AÑO',5,AZUL],['PLACAS',10.2,AZUL],['ECONOMICO',8.6,AZUL],['FECHA COTIZACION',11.6,GRIS],
+    ['CANTIDAD',7.1,AZUL],['DESCRIPCION TRABAJO',22.4,AZUL],['PRECIO COMPRA REFACCION',14,VERDE],['MANO DE OBRA',11.6,VERDE],
+    ['NOMBRE DEL PROVEEDOR',11.6,AZUL],['PRECIO SITEL  REFACCION',11.6,VERDE],['FOLIO FACTURA A PROVEEDOR',11.6,AZUL],
+    ['FECHA DE OT',11.6,GRIS],['FECHA DE REPARACION',14.3,AZUL],['OT',11.6,AZUL],['ESTATUS',11.8,AZUL],
+    ['FECHA DE  DE  FACTURA',11.6,GRIS],['# FACTURA ',11.6,AZUL],['FECHA PAGO DEL CLIENTE ',11.6,GRIS],
+    ['OBSERVACIONES',13.1,AZUL],['FECHA INGRESO  A FACTURA',11.6,null],['LOCALIDAD',8.1,AMAR],['DIAGNOSTICO',9.4,AMAR],
+    ['EST GENERAL DIRECCION',12.3,AMAR],['SEM REP',8.9,null],['MES REP',8.9,null],['AÑO REP',8.9,null]
+  ];
+
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('BASE DATOS',{views:[{state:'frozen',ySplit:1}]});
+  ws.columns=COLS.map(c=>({width:c[1]}));
+  const hd=ws.getRow(1);
+  COLS.forEach((c,i)=>{
+    const cell=hd.getCell(i+1);
+    cell.value=c[0];
+    cell.font={bold:true,size:8,color:{argb:(c[2]===AMAR||!c[2])?'FF000000':'FFFFFFFF'}};
+    if(c[2]) cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:c[2]}};
+    cell.alignment={vertical:'middle',horizontal:'center',wrapText:true};
   });
-  const nCols=headers.length;
-  const sumas=[tc,tp,tm,tsub,tiva,tv].concat(verUtilidad?[tu]:[]);
-  const tot=`<tr><td colspan="15" style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;text-align:right;background:#eef2fb;">TOTALES — ${rows.length} servicios</td>${sumas.map(v=>`<td style="border:1px solid #cfd6e4;padding:7px;font-weight:bold;background:#eef2fb;">${v.toFixed(2)}</td>`).join('')}<td colspan="4" style="border:1px solid #cfd6e4;background:#eef2fb;"></td></tr>`;
-  const hh=headers.map(h=>`<th style="background:#1f2340;color:#fff;border:1px solid #1f2340;padding:7px;font-size:11px;text-align:left;white-space:nowrap;">${he(h)}</th>`).join('');
-  const tabla=`<table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;"><tr><td colspan="${nCols}" style="background:#0f1330;color:#fff;padding:10px;font-size:15px;font-weight:bold;">SITEL AUTOMOTRIZ &mdash; Taller Manager &nbsp;|&nbsp; Plaza: ${he(plazaLabel)}${fe!=='Todos'?' &nbsp;|&nbsp; Estatus: '+he(fe):''}${fb?' &nbsp;|&nbsp; Búsqueda: "'+he(fb)+'"':''} &nbsp;|&nbsp; ${new Date().toLocaleDateString('es-MX')} &nbsp;|&nbsp; ${rows.length} servicios (usa los filtros ▾ de la cabecera)</td></tr><tr>${hh}</tr>${body}${tot}</table>`;
+  hd.height=28;
 
-  // Hoja RESUMEN (tabla dinámica lista)
-  const box=(t)=>`<td style="border:1px solid #cfd6e4;padding:6px 9px;">${t}</td>`;
-  const th=(t)=>`<th style="background:#1f2340;color:#fff;border:1px solid #1f2340;padding:7px;text-align:left;">${t}</th>`;
-  const ORDEN=PIPELINE.concat(ESPECIALES);
-  const filasEst=ORDEN.filter(e=>porEstatus[e]).map((e,i)=>{
-    const d=porEstatus[e]; const paso=PIPELINE.indexOf(e); const num=paso>=0?(paso+1):'—';
-    return `<tr>${box(num)}${box(he(e))}${box(d.n)}${box(d.tot.toFixed(2))}${verUtilidad?box(d.util.toFixed(2)):''}</tr>`;
-  }).join('');
-  const filasPlaza=Object.keys(porPlaza).sort().map(p=>{
-    const d=porPlaza[p];
-    return `<tr>${box(he(p))}${box(d.n)}${box(d.tot.toFixed(2))}${verUtilidad?box(d.util.toFixed(2)):''}</tr>`;
-  }).join('');
-  const g=(arr)=>arr.reduce((a,e)=>a+(porEstatus[e]?porEstatus[e].n:0),0);
-  const gm=(arr)=>arr.reduce((a,e)=>a+(porEstatus[e]?porEstatus[e].tot:0),0);
-  const resumen=`
-  <table border="1" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;">
-   <tr><td colspan="5" style="background:#0f1330;color:#fff;padding:10px;font-size:15px;font-weight:bold;">RESUMEN &mdash; ${he(plazaLabel)} &nbsp;|&nbsp; ${new Date().toLocaleDateString('es-MX')}</td></tr>
-   <tr><td colspan="5" style="height:8px;"></td></tr>
-   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">EN QUÉ ESTÁ EL TRABAJO</td></tr>
-   <tr>${th('Grupo')}${th('Servicios')}${th('Total c/IVA')}<th></th><th></th></tr>
-   <tr>${box('<b>Esperando autorización</b>')}${box(g(GRUPOS.auth.estatus))}${box(gm(GRUPOS.auth.estatus).toFixed(2))}<td></td><td></td></tr>
-   <tr>${box('<b>En taller</b>')}${box(g(GRUPOS.taller.estatus))}${box(gm(GRUPOS.taller.estatus).toFixed(2))}<td></td><td></td></tr>
-   <tr>${box('<b>Por facturar</b>')}${box(g(GRUPOS.porfact.estatus))}${box(gm(GRUPOS.porfact.estatus).toFixed(2))}<td></td><td></td></tr>
-   <tr>${box('<b>Rechazados</b>')}${box(porEstatus['No Autorizado / Rechazado']?porEstatus['No Autorizado / Rechazado'].n:0)}${box('')}<td></td><td></td></tr>
-   <tr><td colspan="5" style="height:12px;"></td></tr>
-   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">DETALLE POR PASO</td></tr>
-   <tr>${th('Paso')}${th('Etapa')}${th('Servicios')}${th('Total c/IVA')}${verUtilidad?th('Utilidad'):''}</tr>
-   ${filasEst}
-   <tr><td colspan="5" style="height:12px;"></td></tr>
-   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">POR PLAZA</td></tr>
-   <tr>${th('Plaza')}${th('Servicios')}${th('Total c/IVA')}${verUtilidad?th('Utilidad'):''}<th></th></tr>
-   ${filasPlaza}
-   ${verUtilidad?`<tr><td colspan="5" style="height:12px;"></td></tr>
-   <tr><td colspan="5" style="background:#dde6f7;font-weight:bold;padding:7px;">DINERO</td></tr>
-   <tr>${box('Costo de piezas')}${box(tc.toFixed(2))}<td></td><td></td><td></td></tr>
-   <tr>${box('Mano de obra')}${box(tm.toFixed(2))}<td></td><td></td><td></td></tr>
-   <tr>${box('Subtotal')}${box(tsub.toFixed(2))}<td></td><td></td><td></td></tr>
-   <tr>${box('IVA')}${box(tiva.toFixed(2))}<td></td><td></td><td></td></tr>
-   <tr>${box('<b>Total con IVA</b>')}${box('<b>'+tv.toFixed(2)+'</b>')}<td></td><td></td><td></td></tr>
-   <tr>${box('<b>Utilidad bruta</b>')}${box('<b>'+tu.toFixed(2)+'</b>')}<td></td><td></td><td></td></tr>`:''}
-  </table>`;
+  let r=2;
+  ordenes.forEach(s=>{
+    const piezas=refs.filter(x=>x.servicio_id===s.id)
+                     .sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
+    const lista=piezas.length?piezas:[null];   // una orden sin refacciones tambien aparece
+    lista.forEach((rf,i)=>{
+      const cant=rf?(Number(rf.cantidad)||0):null;
+      const compra=rf?cant*(Number(rf.costo_final!=null?rf.costo_final:rf.costo)||0):null;
+      const sitel=rf?cant*(Number(rf.precio)||0):null;
+      const fila=ws.getRow(r);
+      fila.getCell(1).value=s.cot||'';
+      fila.getCell(2).value=_fec(s.fecha_recepcion);
+      fila.getCell(3).value=s.serie||'';
+      fila.getCell(4).value=(s.marca||'').toUpperCase();
+      fila.getCell(5).value=(s.modelo||'').toUpperCase();
+      fila.getCell(6).value=s.anio||'';
+      fila.getCell(7).value=s.placas||'';
+      fila.getCell(8).value=s.economico||'';
+      fila.getCell(9).value=fechaPaso(s.id,'Cotización');
+      fila.getCell(10).value=cant;
+      fila.getCell(11).value=rf?(rf.descripcion||''):'';
+      fila.getCell(12).value=compra;
+      fila.getCell(13).value=(i===0)?(Number(s.mano_obra)||0):null;   // solo una vez por orden
+      fila.getCell(14).value=rf?(rf.proveedor||''):'';
+      fila.getCell(15).value=sitel;
+      fila.getCell(16).value='';                                      // folio factura a proveedor: no se captura
+      fila.getCell(17).value=fechaPaso(s.id,'Pendiente de OT');
+      fila.getCell(18).value=fechaPaso(s.id,'Reparado');
+      fila.getCell(19).value=s.ot||'';
+      fila.getCell(20).value=EST_MAESTRO[s.estatus]||s.estatus||'';
+      fila.getCell(21).value=_fec(s.fecha_factura);
+      fila.getCell(22).value=s.num_factura||'';
+      fila.getCell(23).value=_fec(s.fecha_pago);
+      fila.getCell(24).value='';                                      // observaciones: no se captura
+      fila.getCell(25).value='';                                      // fecha ingreso a factura: no se captura
+      fila.getCell(26).value=(s.plaza||'').toUpperCase();
+      fila.getCell(27).value=(s.diagnosticos||'').toUpperCase();
+      fila.getCell(28).value=estGeneral(s.estatus);
+      fila.getCell(29).value={formula:'IFERROR(WEEKNUM(R'+r+'),"")'};
+      fila.getCell(30).value={formula:'IFERROR(MONTH(R'+r+'),"")'};
+      fila.getCell(31).value={formula:'IFERROR(YEAR(R'+r+'),"")'};
+      [2,9,17,18,21,23,25].forEach(c=>fila.getCell(c).numFmt=FECHA);
+      [12,13,15].forEach(c=>fila.getCell(c).numFmt=MONEDA);
+      for(let c=1;c<=31;c++) fila.getCell(c).font={size:8};
+      r++;
+    });
+  });
+  ws.autoFilter='A1:AE'+(r-1);
 
-  const libro='\uFEFF<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8">'
-   +'<xml><x:ExcelWorkbook><x:ExcelWorksheets>'
-   +'<x:ExcelWorksheet><x:Name>Resumen</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>'
-   +'<x:ExcelWorksheet><x:Name>Detalle</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'
-   +`<x:AutoFilter x:Range="R2C1:R${rows.length+2}C${nCols}"/>`
-   +'</x:ExcelWorksheet>'
-   +'</x:ExcelWorksheets></x:ExcelWorkbook></xml></head><body>'
-   +resumen+'<br style="page-break-before:always">'+tabla+'</body></html>';
-  const blob=new Blob([libro],{type:'application/vnd.ms-excel;charset=utf-8;'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download=`Reporte_${fp==='Todos'?'Todas_las_plazas':fp.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.xls`; a.click();
+  // ===== Hoja resumen: mismo cruce que su tabla dinamica =====
+  const est=[...new Set(ordenes.map(o=>EST_MAESTRO[o.estatus]||o.estatus))]
+            .sort((a,b)=>ORDEN_EST.indexOf(a)-ORDEN_EST.indexOf(b));
+  const plazas=[...new Set(ordenes.map(o=>(o.plaza||'').toUpperCase()))].sort();
+  const w2=wb.addWorksheet('TD GR PENDI',{views:[{state:'frozen',xSplit:1,ySplit:2}]});
+  w2.getCell('A1').value='ESTATUS';
+  w2.getCell('A1').font={bold:true,size:9,color:{argb:'FFFFFFFF'}};
+  w2.getCell('A1').fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1F3864'}};
+  const enc=w2.getRow(2);
+  enc.getCell(1).value='LOCALIDAD';
+  est.forEach((e,i)=>enc.getCell(i+2).value=e);
+  enc.getCell(est.length+2).value='TOTAL';
+  enc.eachCell(c=>{ c.font={bold:true,size:9,color:{argb:'FFFFFFFF'}};
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1F3864'}};
+    c.alignment={vertical:'middle',horizontal:'center',wrapText:true}; });
+  enc.height=34;
+  let f2=3;
+  const totCol=new Array(est.length).fill(0);
+  plazas.forEach(pl=>{
+    const fila=w2.getRow(f2); fila.getCell(1).value=pl; fila.getCell(1).font={bold:true,size:9};
+    let tot=0;
+    est.forEach((e,i)=>{
+      const n=ordenes.filter(o=>(o.plaza||'').toUpperCase()===pl && (EST_MAESTRO[o.estatus]||o.estatus)===e).length;
+      fila.getCell(i+2).value=n||null; fila.getCell(i+2).alignment={horizontal:'center'};
+      tot+=n; totCol[i]+=n;
+    });
+    const ct=fila.getCell(est.length+2); ct.value=tot; ct.font={bold:true,size:9};
+    ct.alignment={horizontal:'center'};
+    ct.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFC6E0B4'}};
+    f2++;
+  });
+  const ft=w2.getRow(f2); ft.getCell(1).value='TOTAL';
+  est.forEach((e,i)=>ft.getCell(i+2).value=totCol[i]||null);
+  ft.getCell(est.length+2).value=totCol.reduce((a,b)=>a+b,0);
+  ft.eachCell(c=>{ c.font={bold:true,size:9}; c.alignment={horizontal:'center'};
+    c.border={top:{style:'double'}}; });
+  w2.getColumn(1).width=16;
+  for(let c=2;c<=est.length+2;c++) w2.getColumn(c).width=15;
+
+  const buf=await wb.xlsx.writeBuffer();
+  const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='BASE_AUTOMOTRIZ_'+(fp==='Todos'?'TODAS':norm(fp).toUpperCase().replace(/\s+/g,'_'))+'_'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx';
+  a.click(); setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 async function logout(){ await sb.auth.signOut(); location.reload(); }
 (async()=>{ const { data:{ session } }=await sb.auth.getSession(); if(session) await iniciar(session.user); })();
