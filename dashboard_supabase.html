@@ -125,6 +125,9 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
 .btn-gar{ background:rgba(169,123,255,.12); color:#c9adff; border:1px solid rgba(169,123,255,.35); padding:11px 16px; font-weight:700; border-radius:11px; cursor:pointer; font-size:13px; margin-left:8px; }
 .up{ border:2px dashed var(--indigo); border-radius:11px; padding:13px; text-align:center; color:#9fb6ff; font-weight:600; cursor:pointer; font-size:12.5px; margin:8px 0; background:rgba(95,139,255,.08); display:block; }
 .up input{ display:none; }
+.edgrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
+.edgrid label{ display:block; font-size:10.5px; font-weight:700; color:var(--muted); margin-bottom:4px; }
+.edgrid input{ margin:0; }
 .money{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:12px 0; }
 .mbox{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:11px; padding:12px; text-align:center; }
 .mbox .ml{ font-size:9.5px; text-transform:uppercase; color:var(--muted); font-weight:600; letter-spacing:.4px; }
@@ -951,6 +954,39 @@ function abrir(id){
       <div><div class="l">Ingreso</div><div class="vv">${s.fecha_recepcion||'—'}</div></div>
       <div><div class="l">Estatus</div><div class="vv" style="color:${COLOR[s.estatus]||'#fff'};">${NUM_PASO[s.estatus]||''} ${nomPaso(s.estatus)}</div></div>
     </div>
+    ${esAdmin()?`<details class="det-orden" style="border-color:rgba(255,184,77,.35);">
+      <summary style="color:#ffb84d;">✏️ Editar datos de la orden — solo admin y gerencia</summary>
+      <div style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">
+        Puedes corregir cualquier dato en cualquier paso del flujo. Cada cambio queda firmado en el historial con tu nombre.
+      </div>
+      <div class="edgrid">
+        ${campoEd('economico','Económico',s.economico)}
+        ${campoEd('cot','Folio COT',s.cot)}
+        ${campoEd('ot','OT',s.ot)}
+        ${campoEd('cope','COPE',s.cope)}
+        ${campoEd('marca','Marca',s.marca)}
+        ${campoEd('modelo','Modelo',s.modelo)}
+        ${campoEd('anio','Año',s.anio)}
+        ${campoEd('placas','Placas',s.placas)}
+        ${campoEd('serie','Serie (VIN)',s.serie)}
+        ${campoEd('kilometraje','Kilometraje',s.kilometraje)}
+        ${campoEd('mecanico','Mecánico',s.mecanico)}
+        ${campoEd('atencion','Atención (ingeniero)',s.atencion)}
+        ${campoEd('diagnosticos','Diagnóstico',s.diagnosticos)}
+        ${campoEd('falla','Comentarios del mecánico',s.falla)}
+        ${campoEd('observaciones','Observaciones',s.observaciones)}
+        ${campoEd('num_factura','No. Factura',s.num_factura)}
+        ${campoEd('importe_pagado','Importe pagado',s.importe_pagado,'number')}
+        ${campoEd('fecha_recepcion','Fecha de ingreso',s.fecha_recepcion,'date')}
+        ${campoEd('fecha_cotizacion','Fecha de cotización',s.fecha_cotizacion,'date')}
+        ${campoEd('fecha_ot','Fecha de OT',s.fecha_ot,'date')}
+        ${campoEd('fecha_reparacion','Fecha de reparación',s.fecha_reparacion,'date')}
+        ${campoEd('fecha_factura','Fecha de factura',s.fecha_factura,'date')}
+        ${campoEd('fecha_pago','Fecha de pago',s.fecha_pago,'date')}
+      </div>
+      <button class="btn-sm" id="btn-edord" style="margin-top:12px;background:linear-gradient(135deg,#ffb84d,#f59e0b);color:#3a2600;border:0;font-weight:800;" onclick="guardarEdicion('${id}')">Guardar cambios</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">La plaza y el estatus no se editan aquí: la plaza define el folio, y el estatus se mueve con los botones del flujo.</div>
+    </details>`:''}
     <details class="det-orden" ${PIPELINE.indexOf(s.estatus)>=4?'':'open'}>
     <summary>📋 Detalle de la orden e historial</summary>
     ${(()=>{const a=alertaAutorizacion(s); if(!a) return '';
@@ -1521,6 +1557,59 @@ async function setMO(id,val){
   refrescarTotales(id);
   okGuardado('btn-mo');
 }
+// ===== Edición libre de la orden (admin y gerencia) =====
+// Cualquier campo, en cualquier paso. Cada cambio se firma en el historial.
+const ED_CAMPOS={
+  economico:'Económico', cot:'Folio COT', ot:'OT', cope:'COPE', marca:'Marca', modelo:'Modelo',
+  anio:'Año', placas:'Placas', serie:'Serie (VIN)', kilometraje:'Kilometraje', mecanico:'Mecánico',
+  atencion:'Atención', diagnosticos:'Diagnóstico', falla:'Comentarios del mecánico',
+  observaciones:'Observaciones', num_factura:'No. Factura', importe_pagado:'Importe pagado',
+  fecha_recepcion:'Fecha de ingreso', fecha_cotizacion:'Fecha de cotización', fecha_ot:'Fecha de OT',
+  fecha_reparacion:'Fecha de reparación', fecha_factura:'Fecha de factura', fecha_pago:'Fecha de pago'
+};
+function campoEd(campo, etiqueta, valor, tipo){
+  const v=(valor===null||valor===undefined)?'':String(valor);
+  const t=tipo||'text';
+  return `<div><label>${etiqueta}</label><input type="${t}" ${t==='number'?'step="0.01"':''} id="ed-${campo}" value="${v.replace(/"/g,'&quot;')}" oninput="reactivar('btn-edord')"></div>`;
+}
+async function guardarEdicion(id){
+  if(!esAdmin()){ alert('Solo admin y gerencia pueden editar la orden.'); return; }
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const cambios={}, bitacora=[];
+  for(const campo in ED_CAMPOS){
+    const el=document.getElementById('ed-'+campo); if(!el) continue;
+    let nuevo=el.value.trim();
+    let antes=(s[campo]===null||s[campo]===undefined)?'':String(s[campo]);
+    if(campo==='importe_pagado'){
+      const n = nuevo===''?null:Number(nuevo);
+      if(nuevo!=='' && isNaN(n)){ alert('El importe pagado debe ser un número.'); return; }
+      if(String(n===null?'':n)===String(antes===''?'':Number(antes))) continue;
+      cambios[campo]=n; bitacora.push(`${ED_CAMPOS[campo]}: "${antes||'vacío'}" → "${nuevo||'vacío'}"`);
+      continue;
+    }
+    if(nuevo===antes) continue;
+    cambios[campo]= nuevo===''? null : nuevo;
+    bitacora.push(`${ED_CAMPOS[campo]}: "${antes||'vacío'}" → "${nuevo||'vacío'}"`);
+  }
+  if(!bitacora.length){ alert('No hay cambios que guardar.'); return; }
+  if(!confirm('Se van a guardar '+bitacora.length+' cambio(s) en esta orden:\n\n'+bitacora.join('\n')+'\n\nQuedarán registrados en el historial a tu nombre. ¿Continuar?')) return;
+  const b=document.getElementById('btn-edord'); if(b){ b.disabled=true; b.textContent='Guardando...'; }
+  try{
+    const {error}=await sb.from('tm_servicios').update(cambios).eq('id',id);
+    if(error) throw error;
+    for(const linea of bitacora){
+      await sb.from('tm_historial').insert({servicio_id:id, estatus:'Edición · '+linea, usuario:profile.nombre});
+    }
+    Object.assign(s,cambios);
+    await cargarTodo();
+    if(b){ b.disabled=false; b.textContent='Guardar cambios'; }
+    okGuardado('btn-edord');
+  }catch(e){
+    alert('No se pudo guardar: '+(e.message||e));
+    if(b){ b.disabled=false; b.textContent='Guardar cambios'; }
+  }
+}
+
 async function toggleTipoPieza(refId){
   // Cambia el tipo SIN re-dibujar el panel: el boton y los totales se actualizan en su lugar.
   const r=refs.find(x=>x.id===refId); if(!r) return;
@@ -1662,7 +1751,7 @@ async function exportarExcel(){
       fila.getCell(6).value=s.anio||'';
       fila.getCell(7).value=s.placas||'';
       fila.getCell(8).value=s.economico||'';
-      fila.getCell(9).value=fechaPaso(s.id,'Cotización');
+      fila.getCell(9).value=_fec(s.fecha_cotizacion)||fechaPaso(s.id,'Cotización');
       fila.getCell(10).value=cant;
       fila.getCell(11).value=rf?(rf.descripcion||''):'';
       fila.getCell(12).value=compra;
@@ -1670,14 +1759,14 @@ async function exportarExcel(){
       fila.getCell(14).value=rf?(rf.proveedor||''):'';
       fila.getCell(15).value=sitel;
       fila.getCell(16).value='';                                      // folio factura a proveedor: no se captura
-      fila.getCell(17).value=fechaPaso(s.id,'Pendiente de OT');
-      fila.getCell(18).value=fechaPaso(s.id,'Reparado');
+      fila.getCell(17).value=_fec(s.fecha_ot)||fechaPaso(s.id,'Pendiente de OT');
+      fila.getCell(18).value=_fec(s.fecha_reparacion)||fechaPaso(s.id,'Reparado');
       fila.getCell(19).value=s.ot||'';
       fila.getCell(20).value=EST_MAESTRO[s.estatus]||s.estatus||'';
       fila.getCell(21).value=_fec(s.fecha_factura);
       fila.getCell(22).value=s.num_factura||'';
       fila.getCell(23).value=_fec(s.fecha_pago);
-      fila.getCell(24).value='';                                      // observaciones: no se captura
+      fila.getCell(24).value=s.observaciones||'';
       fila.getCell(25).value='';                                      // fecha ingreso a factura: no se captura
       fila.getCell(26).value=(s.plaza||'').toUpperCase();
       fila.getCell(27).value=(s.diagnosticos||'').toUpperCase();
