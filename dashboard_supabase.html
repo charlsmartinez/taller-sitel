@@ -597,10 +597,17 @@ function totales(s){
   const costoAdicionales   = Math.round(adicionales.reduce((a,p)=>a+(p.cantidad||0)*((p.costo_final!=null?p.costo_final:p.costo)||0),0)*100)/100;
   const costoRealInterno   = Math.round(((s.nuevo_flujo===false ? costo : costoRealCotizadas) + costoAdicionales)*100)/100;
   const totalInterno       = costoRealInterno; // costo real de piezas + adicionales (la mano de obra ya va en la cotización)
-  const utilidad           = Math.round((total - costoRealInterno)*100)/100;
+
+  // Utilidad bruta = lo que se gana en refacciones + lo que se cobra de mano de obra.
+  // Se calcula sobre el subtotal (sin IVA): el IVA se entera al SAT, no es ganancia.
+  const gananciaRef  = Math.round((piezasCliente - costoRealInterno)*100)/100;
+  const gananciaMO   = mo;
+  const utilidadBruta= Math.round((gananciaRef + gananciaMO)*100)/100;
+  const utilidad     = utilidadBruta;
 
   return { costo, mo, piezasCliente, subtotal, iva, total,
            costoRealCotizadas, costoAdicionales, costoRealInterno, totalInterno,
+           gananciaRef, gananciaMO, utilidadBruta,
            utilidad, hayAdicionales: adicionales.length>0 };
 }
 
@@ -881,7 +888,7 @@ function abrir(id){
   const extrasEditables = editable && !especial ? `
     <div class="sect-h">Cargar evidencias adicionales</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <label class="up" style="margin:0;">🔧 Agregar foto de <b>pieza cambiada</b><input type="file" accept="image/*" onchange="subirPieza('${id}',this)"></label>
+      <label class="up" style="margin:0;">🔧 <b>Evidencia extra Supervisor</b> <span style="opacity:.75;font-weight:600;">(puedes subir varias)</span><input type="file" accept="image/*" multiple onchange="subirPieza('${id}',this)"></label>
       <label class="up" style="margin:0;">📷 Subir foto de pieza dañada<input type="file" accept="image/*" onchange="subirExtra('${id}',this)"></label>
     </div>` : '';
 
@@ -992,6 +999,11 @@ function abrir(id){
       <div class="mbox m-iva"><div class="ml">IVA ${Math.round(CFG.iva*100)}%</div><div class="mv">${fmt(t.iva)}</div></div>
       <div class="mbox tot m-tot"><div class="ml">Total con IVA</div><div class="mv">${fmt(t.total)}</div></div>
     </div>
+    ${veDinero()?`<div class="money" style="margin-top:8px;">
+      <div class="mbox"><div class="ml">Ganancia refacciones</div><div class="mv" style="color:#3fe0ad;">${fmt(t.gananciaRef)}</div></div>
+      <div class="mbox"><div class="ml">Ganancia mano de obra</div><div class="mv" style="color:#3fe0ad;">${fmt(t.gananciaMO)}</div></div>
+      <div class="mbox tot" style="border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);"><div class="ml">Utilidad bruta</div><div class="mv" style="color:#3fe0ad;">${fmt(t.utilidadBruta)}</div></div>`:`<div style="display:none;">`}
+    </div>
     ${(s.nuevo_flujo!==false && idx>=PIPELINE.indexOf('Compra de Refacciones y Reparación'))?`<div style="margin-top:10px;background:rgba(95,139,255,.07);border:1px solid rgba(95,139,255,.3);border-left:4px solid #5f8bff;border-radius:10px;padding:12px 14px;">
       <div style="font-size:11px;font-weight:900;color:#8fb0ff;margin-bottom:8px;letter-spacing:.5px;">💼 CONTROL INTERNO REFACCIONES (no lo ve el cliente)</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
@@ -1006,7 +1018,7 @@ function abrir(id){
     ${grupo('Evidencia del proceso',proc)}
     ${grupo('Evidencia de facturación',fact)}
     ${grupo('Evidencia de entrega',ent,'entrega')}
-    ${grupo('Piezas cambiadas',piezas,'pieza')}
+    ${grupo('Evidencia extra Supervisor',piezas,'pieza')}
     ${grupo('Fotos de pieza dañada',extras)}
     ${extrasEditables}
     <div class="sect-h">Historial</div>
@@ -1059,10 +1071,13 @@ async function subirGate(id,tipo,input){
   }catch(e){ alert('Error: '+(e.message||e)); await cargarTodo(); }
 }
 async function subirPieza(id,input){
-  const f=input.files[0]; if(!f) return;
-  const n=evisDe(id).filter(e=>e.tipo.startsWith('pieza_')).length+1;
+  const files=[...(input.files||[])]; if(!files.length) return;
+  let n=evisDe(id).filter(e=>e.tipo.startsWith('pieza_')).length;
   input.parentElement.innerHTML='<span class="spin"></span> Subiendo...';
-  try{ await subirFoto(id,'pieza_'+n,f); await cargarTodo(); }catch(e){ alert('Error: '+(e.message||e)); await cargarTodo(); }
+  try{
+    for(const f of files){ n++; await subirFoto(id,'pieza_'+n,f); }
+    await cargarTodo();
+  }catch(e){ alert('Error: '+(e.message||e)); await cargarTodo(); }
 }
 async function subirExtra(id,input){
   const f=input.files[0]; if(!f) return;

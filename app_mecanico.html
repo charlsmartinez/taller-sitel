@@ -176,17 +176,21 @@ textarea{ min-height:80px; resize:vertical; }
   </div>
 
   <div class="card">
-    <h2>Diagnóstico inicial</h2>
-    <div class="hint">Selecciona uno o varios. Puedes agregar comentarios.</div>
-    <input type="text" id="f-filtro-diag" placeholder="🔍 Filtrar: balatas, motor, batería..." autocomplete="off" style="margin-bottom:10px;">
+    <h2>Diagnóstico inicial <span class="req">*</span></h2>
+    <div class="hint">Obligatorio: selecciona al menos uno. El buscador solo sirve para encontrarlos; si no está en la lista, usa <b>➕ Otro</b>.</div>
+    <input type="text" id="f-filtro-diag" placeholder="🔍 Buscar diagnóstico en la lista..." autocomplete="off" style="margin-bottom:10px;">
     <div class="diag" id="diag-list" style="max-height:320px;overflow-y:auto;"></div>
 
-    <div id="otro-box" class="hide" style="margin-bottom:14px;">
+    <div id="otro-box" class="hide" style="margin-top:14px;">
       <label>Especifica el diagnóstico <span class="req">*</span></label>
       <input type="text" id="f-otro" placeholder="Escribe el diagnóstico">
     </div>
-    <label>Comentarios adicionales</label>
-    <textarea id="f-falla" placeholder="Describe lo que observaste..."></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Comentarios adicionales</h2>
+    <div class="hint">Opcional. Describe lo que observaste en la unidad.</div>
+    <textarea id="f-falla" placeholder="Describe lo que observaste..." style="margin-bottom:0;"></textarea>
   </div>
 
   <div class="card">
@@ -573,7 +577,12 @@ async function enviar(){
   if(document.getElementById('f-marca').value==='OTRO' && !g('f-marca-otro')){ msg.className='msg err'; msg.textContent='Especifica la marca en "Otro".'; document.getElementById('f-marca-otro').classList.add('err'); return; }
   if(document.getElementById('f-modelo').value==='OTRO' && !g('f-modelo-otro')){ msg.className='msg err'; msg.textContent='Especifica el modelo en "Otro".'; document.getElementById('f-modelo-otro').classList.add('err'); return; }
   if(!profile.plaza_id && !PLAZA_ELEGIDA){ msg.className='msg err'; msg.textContent='Selecciona la plaza donde se recibe la unidad.'; document.getElementById('plaza-sel-box').scrollIntoView({behavior:'smooth',block:'center'}); return; }
-  if(!libre && !diagSel.size && !otroOn && !g('f-falla')){ msg.className='msg err'; msg.textContent='Selecciona al menos un diagnóstico o escribe un comentario.'; return; }
+  if(!libre && !diagSel.size && !otroOn){
+    msg.className='msg err';
+    msg.textContent='Selecciona al menos un diagnóstico. Si no aparece en la lista, usa "➕ Otro".';
+    const dl=document.getElementById('diag-list'); if(dl) dl.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
   const faltanFotos = libre ? [] : TIPOS.filter(t=>!fotos[t.k]).map(t=>t.l);
   if(faltanFotos.length){ msg.className='msg err'; msg.textContent='Faltan fotos: '+faltanFotos.join(', '); return; }
 
