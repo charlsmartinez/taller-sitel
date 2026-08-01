@@ -247,10 +247,12 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="kpi c click" id="kpi-auth" onclick="verGrupo('auth')" title="Ver estos servicios"><div class="t">En Proceso</div><div class="v" id="k-auth">0</div><div class="sh">Del diagnóstico a la entrega</div></div>
       <div class="kpi b click" id="kpi-taller" onclick="verGrupo('taller')" title="Ver estos servicios"><div class="t">En Facturación</div><div class="v" id="k-taller">0</div><div class="sh">Entregado · en trámite de factura</div></div>
       <div class="kpi d click" id="kpi-porfact" onclick="verGrupo('porfact')" title="Ver estos servicios"><div class="t">Factura Entregada</div><div class="v" id="k-porfact">0</div><div class="sh">Proceso cerrado · pagado</div></div>
-      <div class="kpi f dinero" id="kpi-costo"><div class="t">Costo Piezas</div><div class="v" id="k-costo">$0.00</div><div class="sh">Lo que se pagó a proveedores</div></div>
+      <div class="kpi f dinero" id="kpi-costo"><div class="t">Refacciones Costo</div><div class="v" id="k-costo">$0.00</div><div class="sh">Lo que se pagó a proveedores</div></div>
+      <div class="kpi f dinero" id="kpi-refcli"><div class="t">Refacciones Facturadas a Cliente</div><div class="v" id="k-refcli">$0.00</div><div class="sh">Piezas con su aumento</div></div>
       <div class="kpi g dinero" id="kpi-mo"><div class="t">Mano de Obra</div><div class="v" id="k-mo">$0.00</div><div class="sh">Trabajo cobrado</div></div>
-      <div class="kpi e dinero" id="kpi-venta"><div class="t">Total Facturado</div><div class="v" id="k-venta">$0.00</div><div class="sh">Cobrado al cliente</div></div>
-      <div class="kpi e dinero" id="kpi-util"><div class="t">Utilidad Bruta</div><div class="v" id="k-util">$0.00</div><div class="sh">Facturado − costo de piezas</div></div>
+      <div class="kpi e dinero" id="kpi-venta"><div class="t">Total Facturado</div><div class="v" id="k-venta">$0.00</div><div class="sh">Refacciones + mano de obra, sin IVA</div></div>
+      <div class="kpi e dinero" id="kpi-utilref"><div class="t">Utilidad Refacciones</div><div class="v" id="k-utilref">$0.00</div><div class="sh">Facturado a cliente − costo</div></div>
+      <div class="kpi e dinero" id="kpi-util"><div class="t">Utilidad Refacciones + Mano de Obra</div><div class="v" id="k-util">$0.00</div><div class="sh">Utilidad bruta</div></div>
     </div>
     <div class="board">
       <div class="board-top">
@@ -654,16 +656,22 @@ function render(){
   const fb=(document.getElementById('f-buscar').value||'').trim().toLowerCase();
   const plazaSet=servicios.filter(s=>fp==='Todos'||norm(s.plaza)===norm(fp));
   const cnt=arr=>plazaSet.filter(s=>arr.includes(s.estatus)).length;
-  let tc=0,tmo=0,tv=0; plazaSet.forEach(s=>{ const t=totales(s); tc+=t.costo; tmo+=t.mo; tv+=t.total; });
+  // Mismos criterios que el detalle de la orden: costo REAL de piezas y montos SIN IVA.
+  let tc=0,tmo=0,tref=0; plazaSet.forEach(s=>{ const t=totales(s); tc+=t.costoRealInterno; tmo+=t.mo; tref+=t.piezasCliente; });
+  tc=Math.round(tc*100)/100; tmo=Math.round(tmo*100)/100; tref=Math.round(tref*100)/100;
+  const tv=Math.round((tref+tmo)*100)/100;          // total facturado, sin IVA
+  const tur=Math.round((tref-tc)*100)/100;          // utilidad de refacciones
   const G_AUTH=GRUPOS.auth.estatus, G_TALLER=GRUPOS.taller.estatus, G_PORFACT=GRUPOS.porfact.estatus;
   document.getElementById('k-total').textContent=plazaSet.length;
   document.getElementById('k-auth').textContent=cnt(G_AUTH);
   document.getElementById('k-taller').textContent=cnt(G_TALLER);
   document.getElementById('k-porfact').textContent=cnt(G_PORFACT);
   document.getElementById('k-costo').textContent=fmt(tc);
+  document.getElementById('k-refcli').textContent=fmt(tref);
   document.getElementById('k-mo').textContent=fmt(tmo);
   document.getElementById('k-venta').textContent=fmt(tv);
-  document.getElementById('k-util').textContent=fmt(tv-tc);
+  document.getElementById('k-utilref').textContent=fmt(tur);
+  document.getElementById('k-util').textContent=fmt(Math.round((tur+tmo)*100)/100);
   // El supervisor no ve montos: solo lo que necesita para operar
   document.querySelectorAll('.kpi.dinero').forEach(el=>{ el.style.display = veDinero()?'':'none'; });
   // marcar visualmente el grupo seleccionado
