@@ -437,8 +437,11 @@ async function iniciar(user){
   document.getElementById('login').classList.add('hide');
   document.getElementById('sb-side').classList.remove('hide');
   document.getElementById('sb-main').classList.remove('hide');
+  // Se reconstruyen desde cero: si el arranque corre dos veces, no se duplican.
   const fe=document.getElementById('f-est');
   const re=document.getElementById('r-est');
+  fe.innerHTML='<option value="Todos">Todos los estatus</option>';
+  re.innerHTML='<option value="Todos">Todos los estatus</option>';
   PIPELINE.concat(ESPECIALES).forEach(p=>{
     const i=PIPELINE.indexOf(p); const txt=(i>=0?((i+1)+'. '+CORTO[i]):p);
     const o=document.createElement('option'); o.value=p; o.textContent=txt; fe.appendChild(o);
@@ -450,11 +453,17 @@ async function iniciar(user){
 }
 async function cargarPlazas(){
   const sel=document.getElementById('f-plaza');
+  // Se reconstruyen desde cero para que no se repitan las plazas
+  sel.innerHTML='<option value="Todos">📍 Todas las Plazas</option>'; sel.disabled=false;
+  document.getElementById('p-plaza').innerHTML='<option value="Todos">📍 Todas las Plazas</option>';
+  document.getElementById('p-plaza').disabled=false;
+  document.getElementById('r-plaza').innerHTML='<option value="Todos">📍 Todas las Plazas</option>';
+  document.getElementById('r-plaza').disabled=false;
   if(esAdmin()||profile.rol==='contabilidad'){
     const { data }=await sb.from('tm_plazas').select('nombre').order('nombre');
     (data||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; sel.appendChild(o); });
     document.getElementById('hdr-plaza').textContent='Todas las plazas';
-    const { data:pl }=await sb.from('tm_plazas').select('nombre').order('nombre');
+    const pl=data;
     const pp=document.getElementById('p-plaza'), rp=document.getElementById('r-plaza');
     (pl||[]).forEach(p=>{
       const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; pp.appendChild(o);
