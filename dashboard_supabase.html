@@ -231,6 +231,7 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
   <div style="padding:10px 14px;">
     <div class="navi on" id="nav-ordenes" onclick="vista('ordenes')">📋 Órdenes</div>
     <div class="navi" id="nav-prov" onclick="vista('proveedores')">🏪 Proveedores</div>
+    <div class="navi hide" id="nav-rep" onclick="vista('reportes')">📊 Reportes</div>
   </div>
   <div class="admin-tools">
     <button class="btn-logout" onclick="abrirPw()" style="margin-bottom:8px;">🔑 Cambiar mi contraseña</button>
@@ -288,6 +289,28 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
         </div>
       </div>
       <div id="prov-body"></div>
+    </div>
+
+    <div id="v-rep" class="hide">
+      <div class="board" style="margin-bottom:18px;">
+        <div class="board-top">
+          <select id="r-periodo" onchange="renderReportes()">
+            <option value="todo">🗓️ Todo el histórico</option>
+            <option value="dia">Hoy</option>
+            <option value="semana">Esta semana</option>
+            <option value="mes">Este mes</option>
+            <option value="anio">Este año</option>
+            <option value="rango">Rango de fechas…</option>
+          </select>
+          <input type="date" id="r-desde" onchange="renderReportes()" style="display:none;max-width:165px;margin:0;">
+          <input type="date" id="r-hasta" onchange="renderReportes()" style="display:none;max-width:165px;margin:0;">
+          <select id="r-plaza" onchange="renderReportes()"><option value="Todos">📍 Todas las Plazas</option></select>
+          <select id="r-est" onchange="renderReportes()"><option value="Todos">Todos los estatus</option></select>
+          <button onclick="exportarReportes()" style="margin-bottom:0;background:linear-gradient(135deg,#0e9f6e,#22d39a);color:#04331f;border:none;border-radius:10px;font-weight:800;cursor:pointer;padding:9px 16px;">📊 Exportar Excel</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:10px;" id="r-resumen"></div>
+      </div>
+      <div id="rep-body"></div>
     </div>
   </div>
 </div>
@@ -415,7 +438,14 @@ async function iniciar(user){
   document.getElementById('sb-side').classList.remove('hide');
   document.getElementById('sb-main').classList.remove('hide');
   const fe=document.getElementById('f-est');
-  PIPELINE.concat(ESPECIALES).forEach(p=>{ const o=document.createElement('option'); o.value=p; const i=PIPELINE.indexOf(p); o.textContent=(i>=0?((i+1)+'. '+CORTO[i]):p); fe.appendChild(o); });
+  const re=document.getElementById('r-est');
+  PIPELINE.concat(ESPECIALES).forEach(p=>{
+    const i=PIPELINE.indexOf(p); const txt=(i>=0?((i+1)+'. '+CORTO[i]):p);
+    const o=document.createElement('option'); o.value=p; o.textContent=txt; fe.appendChild(o);
+    const o2=document.createElement('option'); o2.value=p; o2.textContent=txt; re.appendChild(o2);
+  });
+  // Reportes: solo admin y gerencia
+  if(esAdmin()) document.getElementById('nav-rep').classList.remove('hide');
   await cargarConfig(); await cargarPlazas(); await cargarTodo(); suscribir();
 }
 async function cargarPlazas(){
@@ -425,24 +455,32 @@ async function cargarPlazas(){
     (data||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; sel.appendChild(o); });
     document.getElementById('hdr-plaza').textContent='Todas las plazas';
     const { data:pl }=await sb.from('tm_plazas').select('nombre').order('nombre');
-    const pp=document.getElementById('p-plaza');
-    (pl||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; pp.appendChild(o); });
+    const pp=document.getElementById('p-plaza'), rp=document.getElementById('r-plaza');
+    (pl||[]).forEach(p=>{
+      const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; pp.appendChild(o);
+      const o2=document.createElement('option'); o2.value=p.nombre; o2.textContent='📍 '+p.nombre; rp.appendChild(o2);
+    });
   } else {
     sel.innerHTML=`<option value="${profile.plaza}">📍 ${profile.plaza}</option>`; sel.disabled=true;
     document.getElementById('hdr-plaza').textContent='Plaza: '+profile.plaza;
-    const pp=document.getElementById('p-plaza');
+    const pp=document.getElementById('p-plaza'), rp=document.getElementById('r-plaza');
     pp.innerHTML=`<option value="${profile.plaza}">📍 ${profile.plaza}</option>`; pp.disabled=true;
+    rp.innerHTML=`<option value="${profile.plaza}">📍 ${profile.plaza}</option>`; rp.disabled=true;
   }
 }
 
 function vista(v){
-  const esOrd = v==='ordenes';
-  document.getElementById('v-ordenes').classList.toggle('hide',!esOrd);
-  document.getElementById('v-prov').classList.toggle('hide',esOrd);
-  document.getElementById('nav-ordenes').classList.toggle('on',esOrd);
-  document.getElementById('nav-prov').classList.toggle('on',!esOrd);
-  document.querySelector('header h1').textContent = esOrd?'Dashboard General':'Catálogo de Proveedores';
-  if(!esOrd) renderProv();
+  if(v==='reportes' && !esAdmin()) return;
+  const titulos={ordenes:'Dashboard General',proveedores:'Catálogo de Proveedores',reportes:'Reportes'};
+  document.getElementById('v-ordenes').classList.toggle('hide',v!=='ordenes');
+  document.getElementById('v-prov').classList.toggle('hide',v!=='proveedores');
+  document.getElementById('v-rep').classList.toggle('hide',v!=='reportes');
+  document.getElementById('nav-ordenes').classList.toggle('on',v==='ordenes');
+  document.getElementById('nav-prov').classList.toggle('on',v==='proveedores');
+  document.getElementById('nav-rep').classList.toggle('on',v==='reportes');
+  document.querySelector('header h1').textContent = titulos[v]||'Dashboard General';
+  if(v==='proveedores') renderProv();
+  if(v==='reportes') renderReportes();
 }
 
 function renderProv(){
@@ -1565,6 +1603,195 @@ async function setMO(id,val){
   refrescarTotales(id);
   okGuardado('btn-mo');
 }
+// ===== MÓDULO DE REPORTES (solo admin y gerencia) =====
+// Tres vistas: operativo (dónde está cada unidad), facturación (cuántas por mes)
+// y contable (dinero por plaza). Todos los montos van SIN IVA.
+function rangoReporte(){
+  const modo=document.getElementById('r-periodo').value;
+  const dd=document.getElementById('r-desde'), dh=document.getElementById('r-hasta');
+  const esRango = modo==='rango';
+  dd.style.display = esRango?'':'none';
+  dh.style.display = esRango?'':'none';
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  let desde=null, hasta=null;
+  if(modo==='dia'){ desde=new Date(hoy); hasta=new Date(hoy); }
+  else if(modo==='semana'){ desde=new Date(hoy); desde.setDate(hoy.getDate()-hoy.getDay()); hasta=new Date(desde); hasta.setDate(desde.getDate()+6); }
+  else if(modo==='mes'){ desde=new Date(hoy.getFullYear(),hoy.getMonth(),1); hasta=new Date(hoy.getFullYear(),hoy.getMonth()+1,0); }
+  else if(modo==='anio'){ desde=new Date(hoy.getFullYear(),0,1); hasta=new Date(hoy.getFullYear(),11,31); }
+  else if(esRango){
+    desde = dd.value? new Date(dd.value+'T00:00:00') : null;
+    hasta = dh.value? new Date(dh.value+'T00:00:00') : null;
+  }
+  return {desde,hasta};
+}
+function ordenesReporte(){
+  const {desde,hasta}=rangoReporte();
+  const fp=document.getElementById('r-plaza').value, fe=document.getElementById('r-est').value;
+  return servicios.filter(s=>{
+    if(fp!=='Todos' && norm(s.plaza)!==norm(fp)) return false;
+    if(fe!=='Todos' && s.estatus!==fe) return false;
+    if(desde||hasta){
+      const f=s.fecha_recepcion? new Date(s.fecha_recepcion+'T00:00:00') : null;
+      if(!f) return false;
+      if(desde && f<desde) return false;
+      if(hasta && f>hasta) return false;
+    }
+    return true;
+  });
+}
+const _n0=v=>v?v:'';
+function renderReportes(){
+  if(!esAdmin()) return;
+  const ord=ordenesReporte();
+  const {desde,hasta}=rangoReporte();
+  const per = (desde||hasta)
+    ? `Periodo: ${desde?desde.toLocaleDateString('es-MX'):'inicio'} al ${hasta?hasta.toLocaleDateString('es-MX'):'hoy'}`
+    : 'Periodo: todo el histórico';
+  document.getElementById('r-resumen').textContent = `${per} · ${ord.length} orden(es) · los montos no incluyen IVA`;
+  document.getElementById('rep-body').innerHTML = repOperativo(ord)+repFacturacion(ord)+repContable(ord);
+}
+const T_ABRE='<div class="board" style="margin-bottom:18px;overflow-x:auto;">';
+const TH='padding:8px 10px;font-size:10.5px;font-weight:800;text-align:center;background:#1f3864;color:#fff;border:1px solid rgba(255,255,255,.12);white-space:nowrap;';
+const TD='padding:7px 10px;font-size:12px;text-align:center;border:1px solid var(--line);';
+const TDL='padding:7px 10px;font-size:12px;font-weight:700;border:1px solid var(--line);';
+
+// --- 1. Operativo: dónde está parada cada unidad ---
+function repOperativo(ord){
+  const plazas=[...new Set(ord.map(o=>(o.plaza||'—').toUpperCase()))].sort();
+  const ests=PIPELINE.concat(ESPECIALES).filter(e=>ord.some(o=>o.estatus===e));
+  if(!plazas.length) return T_ABRE+'<div class="sect-h">📋 Reporte operativo</div><div style="color:var(--muted);font-size:13px;">Sin órdenes en este periodo.</div></div>';
+  const totCol=ests.map(e=>ord.filter(o=>o.estatus===e).length);
+  let h=T_ABRE+'<div class="sect-h">📋 Reporte operativo — unidades por plaza y paso</div><table style="border-collapse:collapse;width:100%;min-width:760px;"><thead><tr>'
+    +`<th style="${TH}text-align:left;">LOCALIDAD</th>`+ests.map(e=>`<th style="${TH}">${(NUM_PASO[e]||'')} ${nomPaso(e).toUpperCase()}</th>`).join('')+`<th style="${TH}">TOTAL</th></tr></thead><tbody>`;
+  plazas.forEach(pl=>{
+    const dep=ord.filter(o=>(o.plaza||'—').toUpperCase()===pl);
+    h+=`<tr><td style="${TDL}">${pl}</td>`
+      +ests.map(e=>`<td style="${TD}">${_n0(dep.filter(o=>o.estatus===e).length)}</td>`).join('')
+      +`<td style="${TD}font-weight:800;color:#3fe0ad;">${dep.length}</td></tr>`;
+  });
+  h+=`<tr><td style="${TDL}border-top:2px solid var(--line2);">TOTAL</td>`
+    +totCol.map(n=>`<td style="${TD}font-weight:800;border-top:2px solid var(--line2);">${_n0(n)}</td>`).join('')
+    +`<td style="${TD}font-weight:800;color:#3fe0ad;border-top:2px solid var(--line2);">${ord.length}</td></tr>`;
+  return h+'</tbody></table></div>';
+}
+
+// --- 2. Facturación: cuántas facturas por plaza y mes ---
+function repFacturacion(ord){
+  const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const conFac=ord.filter(o=>o.fecha_factura);
+  if(!conFac.length) return T_ABRE+'<div class="sect-h">🧾 Reporte de facturación</div><div style="color:var(--muted);font-size:13px;">Ninguna orden tiene fecha de factura en este periodo.</div></div>';
+  const claves=[...new Set(conFac.map(o=>{const d=new Date(o.fecha_factura+'T00:00:00');return d.getFullYear()+'-'+d.getMonth();}))]
+    .sort((a,b)=>{const [ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number);return ay-by||am-bm;});
+  const plazas=[...new Set(conFac.map(o=>(o.plaza||'—').toUpperCase()))].sort();
+  const cuenta=(pl,k)=>conFac.filter(o=>{
+    if((o.plaza||'—').toUpperCase()!==pl) return false;
+    const d=new Date(o.fecha_factura+'T00:00:00');
+    return (d.getFullYear()+'-'+d.getMonth())===k;
+  }).length;
+  let h=T_ABRE+'<div class="sect-h">🧾 Reporte de facturación — facturas emitidas por mes</div><table style="border-collapse:collapse;width:100%;"><thead><tr>'
+    +`<th style="${TH}text-align:left;">CIUDAD</th>`
+    +claves.map(k=>{const [y,m]=k.split('-');return `<th style="${TH}">${MESES[+m]} ${y}</th>`;}).join('')
+    +`<th style="${TH}">TOTAL</th></tr></thead><tbody>`;
+  plazas.forEach(pl=>{
+    const tot=conFac.filter(o=>(o.plaza||'—').toUpperCase()===pl).length;
+    h+=`<tr><td style="${TDL}">${pl}</td>`
+      +claves.map(k=>`<td style="${TD}">${_n0(cuenta(pl,k))}</td>`).join('')
+      +`<td style="${TD}font-weight:800;color:#3fe0ad;">${tot}</td></tr>`;
+  });
+  h+=`<tr><td style="${TDL}border-top:2px solid var(--line2);">TOTAL</td>`
+    +claves.map(k=>`<td style="${TD}font-weight:800;border-top:2px solid var(--line2);">${_n0(plazas.reduce((a,pl)=>a+cuenta(pl,k),0))}</td>`).join('')
+    +`<td style="${TD}font-weight:800;color:#3fe0ad;border-top:2px solid var(--line2);">${conFac.length}</td></tr>`;
+  return h+'</tbody></table></div>';
+}
+
+// --- 3. Contable: el dinero por plaza ---
+function totPlaza(ord,pl){
+  const dep=ord.filter(o=>(o.plaza||'—').toUpperCase()===pl);
+  let costo=0,cliente=0,mo=0,fact=0;
+  dep.forEach(o=>{ const t=totales(o); costo+=t.costoRealInterno; cliente+=t.piezasCliente; mo+=t.mo; if(o.num_factura) fact++; });
+  const r=v=>Math.round(v*100)/100;
+  return {ordenes:dep.length, facturas:fact, costo:r(costo), cliente:r(cliente), mo:r(mo),
+          aFacturar:r(cliente+mo), utilidad:r(cliente+mo-costo)};
+}
+function repContable(ord){
+  const plazas=[...new Set(ord.map(o=>(o.plaza||'—').toUpperCase()))].sort();
+  if(!plazas.length) return T_ABRE+'<div class="sect-h">💰 Reporte contable</div><div style="color:var(--muted);font-size:13px;">Sin órdenes en este periodo.</div></div>';
+  const cols=['# FACTURA','FOLIO COT','PRECIO COMPRA REFACCION','PRECIO SITEL REFACCION','MANO DE OBRA','TOTAL A FACTURAR A TMX','FACTURADO MENOS COMPRAS'];
+  const VERDE='padding:8px 10px;font-size:10.5px;font-weight:800;text-align:center;background:#1e7145;color:#fff;border:1px solid rgba(255,255,255,.12);white-space:nowrap;';
+  let h=T_ABRE+'<div class="sect-h">💰 Reporte contable — dinero por plaza (sin IVA)</div><table style="border-collapse:collapse;width:100%;min-width:820px;"><thead><tr>'
+    +`<th style="${VERDE}text-align:left;">LOCALIDAD</th>`+cols.map(c=>`<th style="${VERDE}">${c}</th>`).join('')+'</tr></thead><tbody>';
+  const g={facturas:0,ordenes:0,costo:0,cliente:0,mo:0,aFacturar:0,utilidad:0};
+  plazas.forEach(pl=>{
+    const t=totPlaza(ord,pl);
+    ['facturas','ordenes','costo','cliente','mo','aFacturar','utilidad'].forEach(k=>g[k]+=t[k]);
+    h+=`<tr><td style="${TDL}background:rgba(30,113,69,.18);">${pl}</td>`
+      +`<td style="${TD}">${_n0(t.facturas)}</td><td style="${TD}">${t.ordenes}</td>`
+      +`<td style="${TD}text-align:right;">${fmt(t.costo)}</td><td style="${TD}text-align:right;">${fmt(t.cliente)}</td>`
+      +`<td style="${TD}text-align:right;">${fmt(t.mo)}</td><td style="${TD}text-align:right;font-weight:700;">${fmt(t.aFacturar)}</td>`
+      +`<td style="${TD}text-align:right;font-weight:800;color:#3fe0ad;">${fmt(t.utilidad)}</td></tr>`;
+  });
+  h+=`<tr><td style="${TDL}border-top:2px solid var(--line2);">TOTAL GENERAL</td>`
+    +`<td style="${TD}font-weight:800;border-top:2px solid var(--line2);">${_n0(g.facturas)}</td>`
+    +`<td style="${TD}font-weight:800;border-top:2px solid var(--line2);">${g.ordenes}</td>`
+    +['costo','cliente','mo','aFacturar'].map(k=>`<td style="${TD}text-align:right;font-weight:800;border-top:2px solid var(--line2);">${fmt(Math.round(g[k]*100)/100)}</td>`).join('')
+    +`<td style="${TD}text-align:right;font-weight:800;color:#3fe0ad;border-top:2px solid var(--line2);">${fmt(Math.round(g.utilidad*100)/100)}</td></tr>`;
+  return h+'</tbody></table></div>';
+}
+
+// --- Exportar los tres reportes a Excel ---
+async function exportarReportes(){
+  if(typeof ExcelJS==='undefined'){ alert('No se pudo cargar el generador de Excel.'); return; }
+  const ord=ordenesReporte();
+  if(!ord.length){ alert('No hay órdenes en este periodo.'); return; }
+  const wb=new ExcelJS.Workbook();
+  const enc=(ws,fila,color)=>fila.eachCell(c=>{ c.font={bold:true,size:9,color:{argb:'FFFFFFFF'}};
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:color}};
+    c.alignment={horizontal:'center',vertical:'middle',wrapText:true}; });
+
+  const plazas=[...new Set(ord.map(o=>(o.plaza||'—').toUpperCase()))].sort();
+  const ests=PIPELINE.concat(ESPECIALES).filter(e=>ord.some(o=>o.estatus===e));
+
+  const w1=wb.addWorksheet('Operativo');
+  w1.addRow(['LOCALIDAD',...ests.map(e=>(NUM_PASO[e]||'')+' '+nomPaso(e).toUpperCase()),'TOTAL']);
+  plazas.forEach(pl=>{ const d=ord.filter(o=>(o.plaza||'—').toUpperCase()===pl);
+    w1.addRow([pl,...ests.map(e=>d.filter(o=>o.estatus===e).length||null),d.length]); });
+  w1.addRow(['TOTAL',...ests.map(e=>ord.filter(o=>o.estatus===e).length||null),ord.length]);
+  enc(w1,w1.getRow(1),'FF1F3864'); w1.getColumn(1).width=18;
+  for(let c=2;c<=ests.length+2;c++) w1.getColumn(c).width=16;
+
+  const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const conFac=ord.filter(o=>o.fecha_factura);
+  const claves=[...new Set(conFac.map(o=>{const d=new Date(o.fecha_factura+'T00:00:00');return d.getFullYear()+'-'+d.getMonth();}))]
+    .sort((a,b)=>{const [ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number);return ay-by||am-bm;});
+  const w2=wb.addWorksheet('Facturación');
+  w2.addRow(['CIUDAD',...claves.map(k=>{const [y,m]=k.split('-');return MESES[+m]+' '+y;}),'TOTAL']);
+  plazas.forEach(pl=>{
+    const f=conFac.filter(o=>(o.plaza||'—').toUpperCase()===pl);
+    w2.addRow([pl,...claves.map(k=>f.filter(o=>{const d=new Date(o.fecha_factura+'T00:00:00');return (d.getFullYear()+'-'+d.getMonth())===k;}).length||null),f.length]);
+  });
+  enc(w2,w2.getRow(1),'FF1F3864'); w2.getColumn(1).width=18;
+  for(let c=2;c<=claves.length+2;c++) w2.getColumn(c).width=13;
+
+  const w3=wb.addWorksheet('Contable');
+  w3.addRow(['LOCALIDAD','# FACTURA','FOLIO COT','PRECIO COMPRA REFACCION','PRECIO SITEL REFACCION','MANO DE OBRA','TOTAL A FACTURAR A TMX','FACTURADO MENOS COMPRAS']);
+  const MON='"$"#,##0.00';
+  plazas.forEach(pl=>{ const t=totPlaza(ord,pl);
+    const r=w3.addRow([pl,t.facturas||null,t.ordenes,t.costo,t.cliente,t.mo,t.aFacturar,t.utilidad]);
+    [4,5,6,7,8].forEach(c=>r.getCell(c).numFmt=MON); });
+  const g=plazas.reduce((a,pl)=>{const t=totPlaza(ord,pl);
+    ['facturas','ordenes','costo','cliente','mo','aFacturar','utilidad'].forEach(k=>a[k]=(a[k]||0)+t[k]); return a;},{});
+  const rt=w3.addRow(['TOTAL GENERAL',g.facturas||null,g.ordenes,g.costo,g.cliente,g.mo,g.aFacturar,g.utilidad]);
+  rt.font={bold:true}; [4,5,6,7,8].forEach(c=>rt.getCell(c).numFmt=MON);
+  enc(w3,w3.getRow(1),'FF1E7145'); w3.getColumn(1).width=18;
+  for(let c=2;c<=8;c++) w3.getColumn(c).width=19;
+
+  const buf=await wb.xlsx.writeBuffer();
+  const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const a=document.createElement('a'); a.href=url;
+  a.download='REPORTES_SITEL_'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'.xlsx';
+  a.click(); setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+
 // ===== Edición libre de la orden (admin y gerencia) =====
 // Cualquier campo, en cualquier paso. Cada cambio se firma en el historial.
 const ED_CAMPOS={
