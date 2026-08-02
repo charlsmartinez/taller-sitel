@@ -336,7 +336,7 @@ const PIPELINE=[
 const NUM_PASO={};
 const CORTO=['Diagnóstico','Cotización','Autorización','Compras','Reparación','Pendiente de OT','Entregar auto','Pendiente factura','Factura emitida','Factura enviada a TMX','Factura pagada'];
 PIPELINE.forEach((e,i)=>{ NUM_PASO[e]=(i+1)+'.'; });
-const ESPECIALES=['No Autorizado / Rechazado','Garantía'];
+const ESPECIALES=['No Autorizado / Rechazado','Garantía','Cerrada por garantía'];
 // Candados: estatus destino -> evidencias requeridas
 // La evidencia de cada paso se sube ESTANDO en ese paso y habilita el siguiente.
 // GATES[destino] = lo que debe existir del paso en el que estás parado.
@@ -394,7 +394,7 @@ const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // OT c
 const COLOR={'Diagnóstico':'#f5b800','Cotización':'#ff9800','Autorizado':'#3b82f6',
  'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899',
  'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9',
- 'Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37','No Autorizado / Rechazado':'#ff5a6a','Garantía':'#a97bff'};
+ 'Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37','No Autorizado / Rechazado':'#ff5a6a','Garantía':'#a97bff','Cerrada por garantía':'#8b5cf6'};
 const ENTREGA=['frontal','lateralDer','lateralIzq','trasera','tablero','motor','odometro'];
 const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const norm=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -805,7 +805,7 @@ function abrir(id){
   }
   const campos=next?(CAMPOS[next]||[]):[];
   const faltanCampos=s.es_garantia?[]:campos.filter(c=>!s[c]);
-  const editable=puedeEditar();
+  const editable=puedeEditar() && (s.estatus!=='Cerrada por garantía' || esAdmin());
 
   // Alerta de facturas de refacción faltantes (desde paso 5 hasta el cierre)
   const idxCompras=PIPELINE.indexOf('Compra de Refacciones y Reparación');
@@ -880,10 +880,61 @@ function abrir(id){
 
   let sugHtml='';
 
-  const garBox = s.es_garantia ? `<div style="background:rgba(169,123,255,.12);border:1px solid rgba(169,123,255,.4);border-left:4px solid #a97bff;border-radius:10px;padding:11px 15px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-      <div><span style="font-size:12px;font-weight:900;color:#c9adff;">🛡️ GARANTÍA</span>
-      <span style="font-size:12px;color:#cdd3ee;margin-left:8px;">Sigue el flujo normal, sin evidencias obligatorias.</span></div>
-      ${editable?`<button class="btn-sm" onclick="quitarGarantia('${id}')">Quitar garantía</button>`:''}</div>` : '';
+  const MOR='rgba(169,123,255,';
+  const garBox = s.es_garantia ? `<div style="background:${MOR}.12);border:1px solid ${MOR}.4);border-left:4px solid #a97bff;border-radius:10px;padding:13px 15px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div><span style="font-size:12px;font-weight:900;color:#c9adff;">🛡️ GARANTÍA${s.garantia_tipo?' · '+GAR_TXT[s.garantia_tipo].toUpperCase():''}</span>
+        <span style="font-size:12px;color:#cdd3ee;margin-left:8px;">${s.estatus==='Cerrada por garantía'?'Orden cerrada. No se factura ni se cobra al cliente.':'Sin costo para el cliente.'}</span></div>
+        ${(editable&&s.estatus!=='Cerrada por garantía')?`<button class="btn-sm" onclick="quitarGarantia('${id}')">Quitar garantía</button>`:''}
+      </div>
+
+      ${(editable && !s.garantia_tipo && s.estatus==='Cotización')?`
+      <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:8px;">¿Por qué entró en garantía?</div>
+        <div class="frow" style="margin-bottom:10px;">
+          <div style="flex:1;min-width:170px;">
+            <label style="font-size:10.5px;font-weight:700;color:var(--muted);">Económico de la unidad</label>
+            <input type="text" id="gar-eco" value="${s.garantia_economico_ref||s.economico||''}" style="margin:0;" oninput="reactivar('btn-gar-eco')">
+          </div>
+          <button class="btn-sm" id="btn-gar-eco" style="align-self:flex-end;" onclick="setGarantiaEco('${id}')">Ver historial</button>
+        </div>
+        <div id="gar-hist" style="background:rgba(0,0,0,.18);border-radius:9px;padding:11px 13px;margin-bottom:12px;max-height:210px;overflow-y:auto;">${cajaHistorialUnidad(id)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','mano_obra')">🔧 Fue por MANO DE OBRA</button>
+          <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','refaccion')">⚙️ Fue por REFACCIÓN</button>
+        </div>
+      </div>`:''}
+
+      ${(editable && s.garantia_tipo==='mano_obra' && s.estatus==='Cotización')?`
+      <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Motivo de la garantía</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">Esta orden no lleva cotización ni refacciones. Describe qué se hará y por qué.</div>
+        <textarea id="gar-coment" placeholder="Qué se hará y por qué entró en garantía..." style="margin:0 0 10px;min-height:80px;">${s.observaciones||''}</textarea>
+        <button class="btn-sm" id="btn-gar-mo" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaManoObra('${id}')">Guardar y pasar a Entregar auto</button>
+      </div>`:''}
+
+      ${(editable && s.garantia_tipo==='refaccion' && s.estatus==='Cotización')?`
+      <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Cotización dirigida a Compras</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Genera el formato de cotización (ya va dirigido a <b>COMPRAS</b>), envíalo y sube la evidencia del envío. Después la orden pasa al paso de Compras.</div>
+        ${evisDe(id).some(e=>e.tipo==='correo_cotizacion')
+          ? `<div style="font-size:11.5px;font-weight:800;color:#3fe0ad;margin-bottom:10px;">✓ Evidencia de envío a Compras cargada</div>`
+          : `<label class="up up-sm" style="margin-bottom:10px;">📧 Subir evidencia de envío a Compras<input type="file" accept="image/*,application/pdf" onchange="subirGate('${id}','correo_cotizacion',this)"></label>`}
+        <button class="btn-sm" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaARefaccion('${id}')">Pasar a Compras</button>
+      </div>`:''}
+
+      ${(editable && s.garantia_tipo==='refaccion' && s.estatus==='Reparado')?`
+      <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">La reparación quedó lista. Al ser garantía, la orden pasa directo a <b>Entregar auto</b>.</div>
+        <button class="btn-sm" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaAEntrega('${id}')">Pasar a Entregar auto</button>
+      </div>`:''}
+
+      ${(editable && s.estatus==='Auto Entregado')?`
+      <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Sube las evidencias de entrega y cierra la orden. La garantía no se factura.</div>
+        <button class="btn-sm" style="background:linear-gradient(135deg,#22d39a,#0e9f6e);border:0;color:#04331f;font-weight:800;" onclick="cerrarGarantia('${id}')">✓ Cerrar por garantía</button>
+      </div>`:''}
+    </div>` : '';
 
   const repBox = (s.estatus==='Reparado' && editable) ? `
     <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:11px 15px;margin-bottom:12px;">
@@ -1493,16 +1544,136 @@ async function retroceder(id){
   await sb.from('tm_historial').insert({servicio_id:id,estatus:anterior+' (regresado desde '+s.estatus+')',usuario:profile.nombre});
   await cargarTodo(); abrir(id);
 }
+// ===== GARANTÍA =====
+// La orden recorre el flujo completa, pero el sistema avanza sola los pasos que
+// no aplican y los deja anotados en el historial. Así ninguna regla se rompe
+// y las fechas del reporte quedan completas.
+const GAR_TXT={mano_obra:'Mano de obra', refaccion:'Refacción'};
+
+// Historial de la unidad: qué se le hizo antes a ese económico
+function historialUnidad(eco, idActual){
+  const e=(eco||'').trim().toLowerCase();
+  if(!e) return [];
+  return servicios
+    .filter(s=>s.id!==idActual && (s.economico||'').trim().toLowerCase()===e)
+    .sort((a,b)=>new Date(b.fecha_recepcion||b.created_at||0)-new Date(a.fecha_recepcion||a.created_at||0));
+}
+function cajaHistorialUnidad(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return '';
+  const eco=(s.garantia_economico_ref||s.economico||'').trim();
+  const prev=historialUnidad(eco,id);
+  if(!eco) return '<div style="font-size:12px;color:var(--muted);">Captura el económico para ver el historial de la unidad.</div>';
+  if(!prev.length) return `<div style="font-size:12px;color:var(--muted);">Sin reparaciones previas registradas para el económico <b>${eco}</b>.</div>`;
+  return `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;margin-bottom:7px;">Reparaciones previas de la unidad ${eco}</div>`
+    + prev.slice(0,6).map(p=>{
+        const piezas=refs.filter(r=>r.servicio_id===p.id).map(r=>r.descripcion).filter(Boolean).slice(0,4).join(', ');
+        return `<div style="border-left:2px solid rgba(169,123,255,.5);padding:6px 0 6px 10px;margin-bottom:7px;">
+          <div style="font-size:12px;font-weight:700;">${p.cot||'—'} · ${p.fecha_recepcion||'sin fecha'} <span style="color:var(--muted);font-weight:600;">· ${nomPaso(p.estatus)}</span></div>
+          <div style="font-size:11.5px;color:var(--muted);">${p.diagnosticos||'sin diagnóstico'}${piezas?' · '+piezas:''}${p.mecanico?' · '+p.mecanico:''}</div>
+        </div>`;
+      }).join('');
+}
+
+// Paso 1: el generalista marca la orden como garantía y elige el tipo
 async function marcarGarantia(id){
-  if(!confirm('¿Marcar esta orden como GARANTÍA?\n\nSigue el mismo flujo, pero sin evidencias obligatorias.')) return;
-  const {error}=await sb.from('tm_servicios').update({es_garantia:true}).eq('id',id);
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  if(!confirm('¿Marcar esta orden como GARANTÍA?\n\nDespués eliges si fue por mano de obra o por refacción.')) return;
+  const {error}=await sb.from('tm_servicios').update({es_garantia:true, garantia_economico_ref:s.economico||null}).eq('id',id);
   if(error){ alert('No se pudo: '+error.message); return; }
-  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía',usuario:profile.nombre});
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía · marcada por '+profile.nombre,usuario:profile.nombre});
   await cargarTodo(); abrir(id);
 }
 async function quitarGarantia(id){
-  const {error}=await sb.from('tm_servicios').update({es_garantia:false}).eq('id',id);
+  if(!confirm('¿Quitar la marca de garantía? La orden vuelve al flujo normal.')) return;
+  const {error}=await sb.from('tm_servicios').update({es_garantia:false, garantia_tipo:null}).eq('id',id);
   if(error){ alert('No se pudo: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía · retirada por '+profile.nombre,usuario:profile.nombre});
+  await cargarTodo(); abrir(id);
+}
+async function setGarantiaEco(id){
+  const v=(document.getElementById('gar-eco').value||'').trim();
+  const {error}=await sb.from('tm_servicios').update({garantia_economico_ref:v||null}).eq('id',id);
+  if(error){ alert('No se pudo: '+error.message); return; }
+  const s=servicios.find(x=>x.id===id); if(s) s.garantia_economico_ref=v||null;
+  const caja=document.getElementById('gar-hist'); if(caja) caja.innerHTML=cajaHistorialUnidad(id);
+  okGuardado('btn-gar-eco');
+}
+
+// Paso 2: elegir el tipo define el camino
+async function setGarantiaTipo(id, tipo){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const msg = tipo==='mano_obra'
+    ? 'GARANTÍA POR MANO DE OBRA\n\nLa orden no lleva cotización ni refacciones.\nCaptura el motivo y el sistema la llevará directo a "Entregar auto" para que subas las evidencias y quede cerrada.\n\n¿Continuar?'
+    : 'GARANTÍA POR REFACCIÓN\n\nSe genera la cotización dirigida a COMPRAS.\nAl enviarla, la orden pasa directo al paso de Compras para que ellos coticen y compren normal.\n\n¿Continuar?';
+  if(!confirm(msg)) return;
+  const upd={garantia_tipo:tipo};
+  if(tipo==='refaccion') upd.atencion='COMPRAS';
+  const {error}=await sb.from('tm_servicios').update(upd).eq('id',id);
+  if(error){ alert('No se pudo: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía · tipo: '+GAR_TXT[tipo],usuario:profile.nombre});
+  await cargarTodo(); abrir(id);
+}
+
+// Recorre los pasos intermedios dejándolos anotados, sin saltarse ninguna regla
+async function recorrerPasos(id, destino, motivo){
+  const s=servicios.find(x=>x.id===id);
+  let i=PIPELINE.indexOf(s.estatus);
+  const fin=PIPELINE.indexOf(destino);
+  if(i<0||fin<0||fin<=i) return true;
+  while(i<fin){
+    i++;
+    const paso=PIPELINE[i];
+    const {error}=await sb.from('tm_servicios').update({estatus:paso}).eq('id',id);
+    if(error){ alert('No se pudo avanzar a "'+nomPaso(paso)+'": '+error.message); return false; }
+    await sb.from('tm_historial').insert({
+      servicio_id:id,
+      estatus: (i===fin) ? paso : (paso+' · omitido por garantía ('+motivo+')'),
+      usuario: profile.nombre
+    });
+  }
+  return true;
+}
+
+// Garantía por mano de obra: capturar el motivo y saltar a Entregar auto
+async function garantiaManoObra(id){
+  const txt=(document.getElementById('gar-coment').value||'').trim();
+  if(!txt){ alert('Captura qué se hará y por qué, antes de continuar.'); return; }
+  if(!confirm('Se guardará el motivo y la orden avanzará a "Entregar auto".\n\nAhí subes las evidencias de entrega y queda cerrada por garantía.\n\n¿Continuar?')) return;
+  const b=document.getElementById('btn-gar-mo'); if(b){ b.disabled=true; b.textContent='Procesando...'; }
+  const {error}=await sb.from('tm_servicios').update({observaciones:txt, mano_obra:0}).eq('id',id);
+  if(error){ alert('No se pudo guardar: '+error.message); if(b){b.disabled=false;b.textContent='Guardar y pasar a Entregar auto';} return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía por mano de obra · '+txt,usuario:profile.nombre});
+  const ok=await recorrerPasos(id,'Auto Entregado','mano de obra');
+  if(b){ b.disabled=false; b.textContent='Guardar y pasar a Entregar auto'; }
+  await cargarTodo(); if(ok) abrir(id);
+}
+
+// Garantía por refacción: enviar la cotización a Compras y saltar al paso de Compras
+async function garantiaARefaccion(id){
+  const s=servicios.find(x=>x.id===id);
+  const ev=evisDe(id).some(e=>e.tipo==='correo_cotizacion');
+  if(!ev){ alert('Primero sube la evidencia de que enviaste la cotización a Compras.'); return; }
+  if(!confirm('La orden pasará al paso de COMPRAS.\n\nDe ahí sigue el flujo normal: cotizan, compran y avanzan a Reparación.\n\n¿Continuar?')) return;
+  const ok=await recorrerPasos(id,'Compra de Refacciones y Reparación','refacción');
+  await cargarTodo(); if(ok) abrir(id);
+}
+
+// Tras Reparación, la garantía por refacción salta a Entregar auto
+async function garantiaAEntrega(id){
+  if(!confirm('La orden avanzará a "Entregar auto" para que subas las evidencias de entrega.\n\n¿Continuar?')) return;
+  const ok=await recorrerPasos(id,'Auto Entregado','refacción');
+  await cargarTodo(); if(ok) abrir(id);
+}
+
+// Cierre: la garantía no se factura
+async function cerrarGarantia(id){
+  const s=servicios.find(x=>x.id===id);
+  const faltan=(GATES['Pendiente de Factura']||[]).filter(g=>!evisDe(id).some(e=>e.tipo===g||e.tipo.startsWith(g+'_')));
+  if(faltan.length && !confirm('Faltan evidencias de entrega:\n\n'+faltan.map(g=>'· '+(GNOM[g]||g)).join('\n')+'\n\n¿Aun así quieres cerrar la garantía?')) return;
+  else if(!faltan.length && !confirm('La orden quedará CERRADA POR GARANTÍA.\n\nNo se factura ni se cobra al cliente. ¿Continuar?')) return;
+  const {error}=await sb.from('tm_servicios').update({estatus:'Cerrada por garantía'}).eq('id',id);
+  if(error){ alert('No se pudo cerrar: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Cerrada por garantía · sin costo para el cliente',usuario:profile.nombre});
   await cargarTodo(); abrir(id);
 }
 async function setTipoReparacion(id,v){
