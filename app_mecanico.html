@@ -195,7 +195,8 @@ textarea{ min-height:80px; resize:vertical; }
 
   <div class="card">
     <h2>Refacciones que se requieren</h2>
-    <div class="hint">Lo que crees necesario para iniciar o terminar el trabajo. Opcional — los costos los captura el supervisor.</div>
+    <div class="hint">Escribe y elige de la lista. Si no aparece, usa <b>➕ Otro</b> y se agrega al catálogo. Opcional — los costos los captura el supervisor.</div>
+    <datalist id="cat-refs"></datalist>
     <div id="refs-list"></div>
     <button class="btn-add-ref" onclick="addRef()">＋ Agregar refacción</button>
   </div>
@@ -280,13 +281,53 @@ async function onExtra(input){ const files=Array.from(input.files||[]); if(!file
 function removeExtra(i){ extras.splice(i,1); renderExtras(); }
 renderExtras();
 
+// Catálogo de refacciones: buscador con autocompletado; lo que no exista se agrega.
+let CAT_REFS=[];
+async function cargarCatalogoRefs(){
+  const { data } = await sb.from('tm_catalogo_refacciones').select('nombre').eq('activo',true).order('nombre');
+  CAT_REFS=(data||[]).map(x=>x.nombre);
+  const dl=document.getElementById('cat-refs');
+  if(dl) dl.innerHTML=CAT_REFS.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('');
+}
+function enCatalogo(txt){
+  const t=(txt||'').trim().toLowerCase();
+  return !!t && CAT_REFS.some(n=>n.trim().toLowerCase()===t);
+}
+function refEscrita(i, valor){
+  refsTmp[i].desc=valor;
+  const av=document.getElementById('ref-nueva-'+i);
+  if(av) av.style.display=(valor.trim() && !enCatalogo(valor)) ? 'flex' : 'none';
+}
+async function agregarAlCatalogo(i){
+  const nombre=(refsTmp[i].desc||'').trim();
+  if(!nombre) return;
+  if(enCatalogo(nombre)){ renderRefs(); return; }
+  const btn=document.getElementById('btn-cat-'+i);
+  if(btn){ btn.disabled=true; btn.textContent='Agregando...'; }
+  const { error }=await sb.from('tm_catalogo_refacciones').insert({nombre, creado_por: profile?profile.nombre:null});
+  if(error && !String(error.message||'').includes('duplicate')){
+    alert('No se pudo agregar al catálogo: '+error.message);
+    if(btn){ btn.disabled=false; btn.textContent='➕ Otro: agregar al catálogo'; }
+    return;
+  }
+  await cargarCatalogoRefs();
+  renderRefs();
+}
 function renderRefs(){
   const c=document.getElementById('refs-list'); c.innerHTML='';
   refsTmp.forEach((r,i)=>{
-    const d=document.createElement('div'); d.className='ref';
-    d.innerHTML=`<input type="text" placeholder="Descripción de la refacción" value="${(r.desc||'').replace(/"/g,'&quot;')}" oninput="refsTmp[${i}].desc=this.value">
-      <input type="number" min="1" placeholder="Cant." value="${r.cant||1}" oninput="refsTmp[${i}].cant=this.value">
-      <button class="btn-x" onclick="delRef(${i})">✕</button>`;
+    const d=document.createElement('div');
+    const nueva = (r.desc||'').trim() && !enCatalogo(r.desc);
+    d.innerHTML=`<div class="ref">
+        <input type="text" list="cat-refs" placeholder="Busca la refacción..." autocomplete="off"
+               value="${(r.desc||'').replace(/"/g,'&quot;')}" oninput="refEscrita(${i},this.value)">
+        <input type="number" min="1" placeholder="Cant." value="${r.cant||1}" oninput="refsTmp[${i}].cant=this.value">
+        <button class="btn-x" onclick="delRef(${i})">✕</button>
+      </div>
+      <div id="ref-nueva-${i}" style="display:${nueva?'flex':'none'};gap:8px;align-items:center;flex-wrap:wrap;margin:-6px 0 12px;padding:8px 11px;border-radius:10px;background:rgba(245,184,0,.09);border:1px solid rgba(245,184,0,.32);">
+        <span style="font-size:11.5px;color:#ffd75e;flex:1;min-width:150px;">No está en el catálogo.</span>
+        <button id="btn-cat-${i}" onclick="agregarAlCatalogo(${i})" style="font-size:11.5px;font-weight:800;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid rgba(245,184,0,.5);background:rgba(245,184,0,.16);color:#ffd75e;font-family:inherit;">➕ Otro: agregar al catálogo</button>
+      </div>`;
     c.appendChild(d);
   });
 }
@@ -364,6 +405,7 @@ async function cargarPerfil(user){
   }
   profile={ id:prof.id, plaza_id:prof.plaza_id, plaza:prof.tm_plazas?prof.tm_plazas.nombre:'', nombre:prof.nombre||user.email, rol:prof.rol };
   cargarCopes();
+  cargarCatalogoRefs();
   llenarSelectsVehiculo();
   document.getElementById('plaza-badge').textContent='📍 '+(profile.plaza||'Elige la plaza');
   if(!profile.plaza_id) await mostrarSelectorPlaza();   // admin y gerencia no tienen plaza propia
