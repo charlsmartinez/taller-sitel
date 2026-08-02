@@ -449,7 +449,7 @@ async function iniciar(user){
   });
   // Reportes: solo admin y gerencia
   if(esAdmin()) document.getElementById('nav-rep').classList.remove('hide');
-  await cargarConfig(); await cargarPlazas(); await cargarTodo(); suscribir();
+  await cargarConfig(); await cargarPlazas(); await cargarIngenieros(); await cargarTodo(); suscribir();
 }
 async function cargarPlazas(){
   const sel=document.getElementById('f-plaza');
@@ -1037,9 +1037,14 @@ function abrir(id){
       <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:11px 15px;margin:8px 0;">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:800;margin-bottom:6px;">Atención (a quién va dirigida la cotización)</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <input type="text" id="aten-${id}" value="${(s.atencion||'').replace(/"/g,'&quot;')}" placeholder="Ej. ING JUAN VERGARA — o déjalo vacío para llenar a mano" style="flex:1;min-width:230px;margin-bottom:0;" oninput="reactivar('btn-aten-${id}')">
+          <input type="text" list="ing-${id}" autocomplete="off" id="aten-${id}" value="${(s.atencion||'').replace(/"/g,'&quot;')}" placeholder="Escribe o elige de la lista de tu plaza" style="flex:1;min-width:230px;margin-bottom:0;" oninput="reactivar('btn-aten-${id}');avisoIngNuevo('${id}')">
+          <datalist id="ing-${id}">${ingenierosDe(s.plaza_id).map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('')}</datalist>
           <button class="btn-sm" id="btn-aten-${id}" onclick="setAtencion('${id}')">Guardar</button>
           <button class="btn-sm" onclick="verFormatoCot('${id}')">👁️ Ver formato</button>
+        </div>
+        <div id="ing-nuevo-${id}" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px;padding:8px 11px;border-radius:9px;background:rgba(245,184,0,.09);border:1px solid rgba(245,184,0,.32);">
+          <span style="font-size:11.5px;color:#ffd75e;flex:1;min-width:160px;">No está en la lista de tu plaza.</span>
+          <button id="btn-ing-${id}" class="btn-sm" style="background:rgba(245,184,0,.16);border:1px solid rgba(245,184,0,.5);color:#ffd75e;font-weight:800;" onclick="agregarIngeniero('${id}')">➕ Agregar a la lista</button>
         </div>
       </div>`:''}
     <div style="margin:14px 0;">${botones}${botonesEspecial}</div>
@@ -1783,6 +1788,40 @@ async function setMO(id,val){
   refrescarTotales(id);
   okGuardado('btn-mo');
 }
+// ===== Catálogo de ingenieros por plaza (campo ATENCIÓN) =====
+// Cada plaza ve solo a los suyos. Lo que no exista se agrega desde el mismo campo.
+let INGENIEROS=[];
+async function cargarIngenieros(){
+  const { data }=await sb.from('tm_ingenieros').select('nombre,plaza_id').eq('activo',true).order('nombre');
+  INGENIEROS=data||[];
+}
+function ingenierosDe(plazaId){
+  return INGENIEROS.filter(i=>!i.plaza_id || i.plaza_id===plazaId).map(i=>i.nombre);
+}
+function avisoIngNuevo(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const v=(document.getElementById('aten-'+id).value||'').trim().toUpperCase();
+  const existe = !v || v==='COMPRAS' || ingenierosDe(s.plaza_id).some(n=>n.trim().toUpperCase()===v);
+  const caja=document.getElementById('ing-nuevo-'+id);
+  if(caja) caja.style.display = existe ? 'none' : 'flex';
+}
+async function agregarIngeniero(id){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  const v=(document.getElementById('aten-'+id).value||'').trim().toUpperCase();
+  if(!v) return;
+  const b=document.getElementById('btn-ing-'+id);
+  if(b){ b.disabled=true; b.textContent='Agregando...'; }
+  const { error }=await sb.from('tm_ingenieros').insert({nombre:v, plaza_id:s.plaza_id||null, creado_por:profile.nombre});
+  if(error && !String(error.message||'').includes('duplicate')){
+    alert('No se pudo agregar: '+error.message);
+    if(b){ b.disabled=false; b.textContent='➕ Agregar a la lista'; }
+    return;
+  }
+  await cargarIngenieros();
+  await setAtencion(id);
+  abrir(id);
+}
+
 // ===== MÓDULO DE REPORTES (solo admin y gerencia) =====
 // Tres vistas: operativo (dónde está cada unidad), facturación (cuántas por mes)
 // y contable (dinero por plaza). Todos los montos van SIN IVA.
