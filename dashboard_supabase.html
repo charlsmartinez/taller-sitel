@@ -254,6 +254,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="kpi e dinero" id="kpi-venta"><div class="t">Total Facturado</div><div class="v" id="k-venta">$0.00</div><div class="sh">Refacciones + mano de obra, sin IVA</div></div>
       <div class="kpi e dinero" id="kpi-utilref"><div class="t">Utilidad Refacciones</div><div class="v" id="k-utilref">$0.00</div><div class="sh">Facturado a cliente − costo</div></div>
       <div class="kpi e dinero" id="kpi-util"><div class="t">Utilidad Refacciones + Mano de Obra</div><div class="v" id="k-util">$0.00</div><div class="sh">Utilidad bruta</div></div>
+      <div class="kpi b dinero" id="kpi-fact"><div class="t">Facturas Emitidas</div><div class="v" id="k-factn">0</div><div class="sh" id="k-factd">$0.00 en total</div></div>
+      <div class="kpi a dinero" id="kpi-xcobrar"><div class="t">Pendiente de Cobro</div><div class="v" id="k-xcobrard">$0.00</div><div class="sh" id="k-xcobrarn">0 facturas · 0 unidades</div></div>
     </div>
     <div class="board">
       <div class="board-top">
@@ -730,6 +732,20 @@ function render(){
   document.getElementById('k-venta').textContent=fmt(tv);
   document.getElementById('k-utilref').textContent=fmt(tur);
   document.getElementById('k-util').textContent=fmt(Math.round((tur+tmo)*100)/100);
+
+  // Facturación — siempre sobre TODO el histórico, no sobre el filtro de pantalla
+  const emitidas = servicios.filter(x=>x.num_factura && String(x.num_factura).trim());
+  const montoDe = x => { const t=totales(x); return (x.importe_pagado!=null && Number(x.importe_pagado)>0) ? Number(x.importe_pagado) : t.total; };
+  const totFact = Math.round(emitidas.reduce((a,x)=>a+montoDe(x),0)*100)/100;
+  document.getElementById('k-factn').textContent = emitidas.length;
+  document.getElementById('k-factd').textContent = fmt(totFact)+' en total';
+
+  // Pendiente de cobro: emitida pero aún sin pago registrado
+  const xCobrar = emitidas.filter(x=>x.estatus!=='Factura Pagada');
+  const montoXCobrar = Math.round(xCobrar.reduce((a,x)=>a+montoDe(x),0)*100)/100;
+  const unidadesXCobrar = new Set(xCobrar.map(x=>x.economico).filter(Boolean)).size;
+  document.getElementById('k-xcobrard').textContent = fmt(montoXCobrar);
+  document.getElementById('k-xcobrarn').textContent = xCobrar.length+' factura'+(xCobrar.length===1?'':'s')+' · '+unidadesXCobrar+' unidad'+(unidadesXCobrar===1?'':'es');
   // El supervisor no ve montos: solo lo que necesita para operar
   document.querySelectorAll('.kpi.dinero').forEach(el=>{ el.style.display = veDinero()?'':'none'; });
   // marcar visualmente el grupo seleccionado

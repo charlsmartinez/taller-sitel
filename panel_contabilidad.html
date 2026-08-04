@@ -190,8 +190,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="kpi d"><div class="t">Pagadas</div><div class="v" id="k-pag">0</div></div>
       <div class="kpi a"><div class="t">Monto por Cobrar</div><div class="v" id="k-porcobrar">$0.00</div></div>
       <div class="kpi d"><div class="t">Monto Cobrado</div><div class="v" id="k-cobrado">$0.00</div></div>
-      <div class="kpi e"><div class="t">Gasto en Refacciones</div><div class="v" id="k-gasto">$0.00</div></div>
-      <div class="kpi d"><div class="t">Utilidad Bruta</div><div class="v" id="k-util">$0.00</div></div>
+      <div class="kpi b"><div class="t">Facturas Emitidas</div><div class="v" id="k-factn">0</div><div class="sh" id="k-factd">$0.00 en total</div></div>
+      <div class="kpi a"><div class="t">Pendiente de Cobro</div><div class="v" id="k-xcobrard">$0.00</div><div class="sh" id="k-xcobrarn">0 facturas · 0 unidades</div></div>
     </div>
     <div class="board">
       <div class="board-top">
@@ -223,8 +223,10 @@ const ENTRADA='Pendiente de Factura';
 const CONTA=['Contabilidad Emitió Factura','Factura Pagada'];  // los que ACTIVA contabilidad (10 y 12)
 // Además ve dos bandejas que le llegan del supervisor: el paso 9 (OT enviada) y el 12 (factura ya enviada a Telmex).
 const BANDEJAS=['Se Envía Factura a Telmex'];
-const VISIBLES=['Pendiente de Factura','Contabilidad Emitió Factura','Se Envía Factura a Telmex','Factura Pagada'];
-const FLUJO=VISIBLES;                                   // orden real de los pasos 9 -> 13
+// 'Auto Entregado' es el paso previo: se muestra solo para consulta, para saber qué viene en camino
+const EN_CAMINO='Auto Entregado';
+const VISIBLES=[EN_CAMINO,'Pendiente de Factura','Contabilidad Emitió Factura','Se Envía Factura a Telmex','Factura Pagada'];
+const FLUJO=VISIBLES.filter(x=>x!==EN_CAMINO);          // los pasos que contabilidad sí trabaja
 const siguiente=(est)=>{ const i=FLUJO.indexOf(est); return (i>=0&&i<FLUJO.length-1)?FLUJO[i+1]:null; };
 const contaEjecuta=(dest)=>CONTA.includes(dest);        // 10, 11 y 13 son suyos; el 12 es del generalista
 const NUM={'Pendiente de Factura':9,'Contabilidad Emitió Factura':10,'Se Envía Factura a Telmex':11,'Factura Pagada':12};
@@ -404,18 +406,26 @@ function render(){
   const cnt=e=>plazaSet.filter(s=>s.estatus===e).length;
   const pagadas=plazaSet.filter(s=>s.estatus==='Factura Pagada');
   const porCobrar=plazaSet.filter(s=>s.estatus!=='Factura Pagada');
-  let cobrado=0,pc=0,gasto=0,util=0;
+  let cobrado=0,pc=0;
   pagadas.forEach(s=>{ const t=totales(s); cobrado+=t.total; });
   porCobrar.forEach(s=>{ const t=totales(s); pc+=t.total; });
-  plazaSet.forEach(s=>{ const t=totales(s); gasto+=t.costo; util+=t.utilidad; });
-  document.getElementById('k-pend').textContent=cnt(ENTRADA)+cnt('Pendiente de Factura');
+  document.getElementById('k-pend').textContent=cnt(ENTRADA);
   document.getElementById('k-emit').textContent=cnt('Contabilidad Emitió Factura');
   document.getElementById('k-env').textContent=cnt('Se Envía Factura a Telmex');
   document.getElementById('k-pag').textContent=pagadas.length;
   document.getElementById('k-porcobrar').textContent=fmt(pc);
   document.getElementById('k-cobrado').textContent=fmt(cobrado);
-  document.getElementById('k-gasto').textContent=fmt(gasto);
-  document.getElementById('k-util').textContent=fmt(util);
+  // Facturación — sobre todo el histórico que ve contabilidad
+  const emitidas=plazaSet.filter(x=>x.num_factura && String(x.num_factura).trim());
+  const montoDe=x=>{ const t=totales(x); return (x.importe_pagado!=null && Number(x.importe_pagado)>0)?Number(x.importe_pagado):t.total; };
+  const totFact=Math.round(emitidas.reduce((a,x)=>a+montoDe(x),0)*100)/100;
+  document.getElementById('k-factn').textContent=emitidas.length;
+  document.getElementById('k-factd').textContent=fmt(totFact)+' en total';
+  const xCobrar=emitidas.filter(x=>x.estatus!=='Factura Pagada');
+  const montoXC=Math.round(xCobrar.reduce((a,x)=>a+montoDe(x),0)*100)/100;
+  const uniXC=new Set(xCobrar.map(x=>x.economico).filter(Boolean)).size;
+  document.getElementById('k-xcobrard').textContent=fmt(montoXC);
+  document.getElementById('k-xcobrarn').textContent=xCobrar.length+' factura'+(xCobrar.length===1?'':'s')+' · '+uniXC+' unidad'+(uniXC===1?'':'es');
 
   const rows=plazaSet.filter(s=>{
     const mE=fe==='Todos'||s.estatus===fe;
@@ -534,9 +544,26 @@ function abrir(id){
     const ok = 'border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
     return `<label class="up" style="${ya?ok:''}">${ya?'✓':'🧾'} ${GNOM[g]||g}${ya?' · Guardado':''}<input type="file" accept="image/*,application/pdf,.xml" onchange="subirGate('${id}','${g}',this)"></label>`;
   };
-  const capturaHtml =
+  let capturaHtml =
       (campos.length ? `<div class="frow">${campos.map(campoRow).join('')}${faltanCampos.length?`<button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button>`:''}</div>` : '')
     + (gate.length ? gate.map(evRow).join('') : '');
+
+  // Las órdenes del paso previo son solo de consulta: contabilidad todavía no las trabaja
+  const enCamino = s.estatus===EN_CAMINO;
+  const faltaEntrega = enCamino
+    ? ['formato_entrega_firmado','identificacion_receptor'].filter(g=>!evT[g])
+    : [];
+  const avisoCamino = enCamino
+    ? `<div style="background:rgba(245,184,0,.1);border:1px solid rgba(245,184,0,.38);border-left:4px solid #f5b800;border-radius:10px;padding:12px 15px;margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:900;color:#ffd75e;">⏳ VA A LLEGAR · aún no es tuya</div>
+        <div style="font-size:12px;color:#cdd3ee;margin-top:5px;">
+          ${faltaEntrega.length
+            ? 'El generalista de <b>'+(s.plaza||'la plaza')+'</b> debe subir todavía: <b>'+faltaEntrega.map(g=>GNOM[g]||g).join('</b> y <b>')+'</b>.'
+            : 'Ya tiene todo lo suyo. En cuanto el generalista la avance, aparecerá para facturar.'}
+        </div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">La ves solo para saber qué viene en camino; no se captura nada desde aquí.</div>
+      </div>`
+    : '';
 
   let accion='';
   // El paso 11 lo mueve el generalista, PERO la factura (PDF y XML) la sube contabilidad
@@ -565,10 +592,12 @@ function abrir(id){
     accion=`<div class="gate ok">✓ Factura pagada. Proceso cerrado.</div>`;
   }
 
+  if(enCamino){ accion=''; capturaHtml=''; }
   p.innerHTML=`<span class="pclose" onclick="cerrar()">✕ Cerrar</span>
     <h2 style="clear:both;">🧾 ${s.economico||s.folio||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${s.vehiculo||''}</span></h2>
     <div style="display:flex;gap:3px;margin:16px 0;flex-wrap:wrap;">${pipe}</div>
-    ${importeBox}
+    ${avisoCamino}
+    ${enCamino?'':importeBox}
     ${accion}
     <div class="info">
       <div><div class="l">OT</div><div class="vv">${s.ot||'—'}</div></div>
