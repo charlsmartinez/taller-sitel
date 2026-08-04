@@ -449,6 +449,24 @@ function irA(v){
 }
 
 // ── Paso 6: evidencias de reparación ──
+// En garantía se piden otras evidencias, según por qué regresó la unidad
+const EV_GAR={
+  mano_obra:[ {k:'evidencia_mano_obra', n:'Foto del trabajo realizado', multi:true} ],
+  refaccion:[
+    {k:'refacciones_montadas', n:'Piezas cambiadas por garantía', multi:true},
+    {k:'entrega_frontal',    n:'Frontal'},
+    {k:'entrega_lateralDer', n:'Lateral derecho'},
+    {k:'entrega_lateralIzq', n:'Lateral izquierdo'},
+    {k:'entrega_trasera',    n:'Trasera'},
+    {k:'entrega_tablero',    n:'Tablero'},
+    {k:'entrega_motor',      n:'Motor'},
+    {k:'entrega_odometro',   n:'Odómetro'}
+  ]
+};
+function evidenciasDe(o){
+  if(o && o.es_garantia && o.garantia_tipo && EV_GAR[o.garantia_tipo]) return EV_GAR[o.garantia_tipo];
+  return EV_REP;
+}
 const EV_REP=[
   {k:'refacciones_usadas',  n:'Piezas que se quitaron',      multi:true},
   {k:'refacciones_compradas',n:'Piezas cambiadas (nuevas)',   multi:true},
@@ -467,7 +485,7 @@ async function cargarReparaciones(){
   const cont=document.getElementById('rep-lista');
   cont.innerHTML='<div class="hint">Cargando...</div>';
   document.getElementById('rep-plaza').textContent='📍 '+(profile.plaza||'Todas las plazas');
-  let q=sb.from('tm_servicios').select('id,economico,cot,marca,modelo,anio,placas,plaza,diagnosticos,estatus').eq('estatus','Reparado');
+  let q=sb.from('tm_servicios').select('id,economico,cot,marca,modelo,anio,placas,plaza,diagnosticos,estatus,es_garantia,garantia_tipo,observaciones').eq('estatus','Reparado');
   if(profile.plaza_id) q=q.eq('plaza_id',profile.plaza_id);
   const { data, error } = await q.order('created_at',{ascending:false});
   if(error){ cont.innerHTML='<div class="msg err">No se pudo cargar: '+error.message+'</div>'; return; }
@@ -484,13 +502,14 @@ async function cargarReparaciones(){
   cont.innerHTML='';
   repOrdenes.forEach(o=>{
     const t=repEvid[o.id]||new Set();
-    const listas=EV_REP.filter(x=>t.has(x.k)).length;
+    const EVo=evidenciasDe(o);
+    const listas=EVo.filter(x=>t.has(x.k)).length;
     const d=document.createElement('div');
     d.style.cssText='border:1.5px solid var(--line);border-radius:12px;padding:13px;margin-bottom:9px;cursor:pointer;background:#12142b;';
     d.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
         <div><div style="font-weight:800;font-size:15px;color:var(--ink);">${o.economico||'—'}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;">${[o.marca,o.modelo,o.anio].filter(Boolean).join(' ')} · ${o.cot||''}</div></div>
-        <div style="text-align:right;"><div style="font-size:11px;font-weight:800;color:${listas===EV_REP.length?'#22d39a':'#ffb84d'};">${listas}/${EV_REP.length}</div>
+        <div style="text-align:right;"><div style="font-size:11px;font-weight:800;color:${listas===EVo.length?'#22d39a':'#ffb84d'};">${listas}/${EVo.length}</div>
         <div style="font-size:10px;color:var(--muted);">evidencias</div></div></div>`;
     d.onclick=()=>abrirReparacion(o.id);
     cont.appendChild(d);
@@ -527,8 +546,15 @@ function abrirReparacion(id){
       <button type="button" id="modo-cam-rep" onclick="setModoFoto(true)">📷 Tomar con cámara</button>
       <button type="button" id="modo-gal-rep" onclick="setModoFoto(false)">🖼️ Elegir de galería</button>
     </div>
-    ${bloque('Refacciones', EV_REP.slice(0,3))}
-    ${bloque('Fotos de la unidad lista', EV_REP.slice(3))}
+    ${o.es_garantia?`<div style="background:rgba(169,123,255,.12);border:1px solid rgba(169,123,255,.4);border-left:4px solid #a97bff;border-radius:10px;padding:11px 14px;margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:900;color:#c9adff;">🛡️ GARANTÍA${o.garantia_tipo==='mano_obra'?' · MANO DE OBRA':(o.garantia_tipo==='refaccion'?' · REFACCIÓN':'')}</div>
+      ${o.observaciones?`<div style="font-size:12px;color:#cdd3ee;margin-top:5px;">${o.observaciones}</div>`:''}
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">Sube solo las evidencias que se piden abajo.</div>
+    </div>`:''}
+    ${(o.es_garantia && o.garantia_tipo==='mano_obra')
+      ? bloque('Evidencia del trabajo', evidenciasDe(o))
+      : `${bloque('Refacciones', evidenciasDe(o).slice(0, o.es_garantia?1:3))}
+         ${bloque('Fotos de la unidad lista', evidenciasDe(o).slice(o.es_garantia?1:3))}`}
     <div class="msg" id="rep-msg" style="margin-top:12px;"></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
       <button class="btn btn-main" style="flex:1;min-width:180px;margin:0;" onclick="terminarReparacion('${o.id}')">✓ Terminar registro</button>
@@ -540,7 +566,8 @@ function abrirReparacion(id){
 }
 function terminarReparacion(id){
   const t=repEvid[id]||new Set();
-  const faltan=EV_REP.filter(x=>!t.has(x.k));
+  const orden=(repOrdenes||[]).find(x=>x.id===id);
+  const faltan=evidenciasDe(orden).filter(x=>!t.has(x.k));
   if(faltan.length){
     if(!confirm('Todavía faltan evidencias:\n\n· '+faltan.map(x=>x.n).join('\n· ')+'\n\n¿Terminar de todas formas? El supervisor podrá completarlas.')) return;
   }
