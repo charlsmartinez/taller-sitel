@@ -500,13 +500,13 @@ function abrir(id){
     const okStyle='border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
     return `<div id="fila-${r.id}" style="border:1px solid ${guardado?'rgba(34,211,154,.45)':'var(--line)'};border-radius:11px;padding:12px 14px;margin-bottom:9px;background:${guardado?'rgba(34,211,154,.06)':'#12142b'};">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div style="font-weight:800;font-size:14px;color:var(--ink);">${r.descripcion||'—'} ${r.es_adicional?'<span style=\'font-size:10px;color:#ffb84d;font-weight:700;\'>· adicional</span>':''}</div>
+        <div style="font-weight:800;font-size:14px;color:var(--ink);">${r.descripcion||'—'} ${r.es_adicional?'<span style=\'font-size:10px;color:#ffb84d;font-weight:700;\'>· adicional</span>':''}${r.a_cambio?'<span style=\'display:inline-block;margin-left:7px;font-size:10px;font-weight:800;color:#7ee8f2;background:rgba(0,208,230,.14);border:1px solid rgba(0,208,230,.45);border-radius:999px;padding:2px 9px;\'>🔄 A CAMBIO · SIN COSTO</span>':''}</div>
         <div style="font-size:11px;color:var(--muted);">Cant: <b style="color:var(--ink);">${r.cantidad||1}</b> · Cotizado: <b style="color:var(--ink);">${fmt(r.costo)}</b></div>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:130px;">
           <label style="font-size:10px;">Costo final (real)</label>
-          <input type="number" step="0.01" id="cf-${r.id}" value="${cf}" placeholder="$ real de la pieza" style="margin:0;" oninput="reactivar('gc-${r.id}')">
+          <input type="number" step="0.01" id="cf-${r.id}" value="${r.a_cambio?0:cf}" ${r.a_cambio?'readonly':''} placeholder="$ real de la pieza" style="margin:0;${r.a_cambio?'opacity:.6;cursor:not-allowed;':''}" oninput="reactivar('gc-${r.id}')">
         </div>
         <div style="flex:1.2;min-width:150px;">
           <label style="font-size:10px;">🏪 Proveedor <span style="color:var(--muted);font-weight:600;">(a quién se le paga)</span></label>
@@ -515,8 +515,13 @@ function abrir(id){
         <button class="btn-sm" id="gc-${r.id}" style="background:${guardado?'#12a878':'linear-gradient(135deg,#22d39a,#12a878)'};color:#04120c;border:0;font-weight:800;" onclick="guardarCostoFinal('${r.id}')">${guardado?'✓ Guardado':'Guardar'}</button>
         <span id="chip-${r.id}" style="display:${guardado?'inline-flex':'none'};align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>
       </div>
-      <div style="font-size:10.5px;margin-top:9px;color:${(tienePDF&&tieneXML)?'#3fe0ad':'var(--muted)'};font-weight:700;">
-        ${(tienePDF&&tieneXML)?'\u2713 Factura y XML cargados m\u00e1s abajo, en su proveedor':'\uD83E\uDDFE Su factura se sube abajo, agrupada por proveedor'}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;">
+        <div style="font-size:10.5px;color:${r.a_cambio?'#7ee8f2':((tienePDF&&tieneXML)?'#3fe0ad':'var(--muted)')};font-weight:700;">
+          ${r.a_cambio
+            ? '\uD83D\uDD04 El proveedor repone esta pieza. No se paga: solo sube abajo el documento del cambio.'
+            : ((tienePDF&&tieneXML)?'\u2713 Factura y XML cargados m\u00e1s abajo, en su proveedor':'\uD83E\uDDFE Su factura se sube abajo, agrupada por proveedor')}
+        </div>
+        <button class="btn-sm" id="ac-${r.id}" style="font-size:10.5px;padding:5px 11px;background:${r.a_cambio?'rgba(255,255,255,.07)':'rgba(0,208,230,.14)'};border:1px solid ${r.a_cambio?'var(--line2)':'rgba(0,208,230,.45)'};color:${r.a_cambio?'var(--muted)':'#7ee8f2'};font-weight:800;" onclick="marcarACambio('${r.id}',${r.a_cambio?'false':'true'})">${r.a_cambio?'Quitar “a cambio”':'🔄 Cambio de pieza con el proveedor'}</button>
       </div>
     </div>`;
   };
@@ -530,6 +535,7 @@ function abrir(id){
   // --- Facturas agrupadas por proveedor -----------------------------------
   // Si varias piezas se compraron al mismo proveedor, basta un archivo para todas.
   const refsFact = misRefs.filter(r=>r.requiere_factura!==false);
+  const hayACambio = misRefs.some(r=>r.a_cambio);
   const grupos = new Map();
   refsFact.forEach(r=>{
     const nombreProv=(r.proveedor||'').trim();
@@ -566,7 +572,7 @@ function abrir(id){
   }).join('');
   const facturasHtml = refsFact.length
     ? `<div class="sect-h">\uD83E\uDDFE Facturas por proveedor</div>
-       <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Un solo archivo cubre todas las piezas del mismo proveedor. Si hay proveedores distintos, sube el archivo de cada uno.</div>
+       <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Un solo archivo cubre todas las piezas del mismo proveedor. Si hay proveedores distintos, sube el archivo de cada uno.${hayACambio?' <b style="color:#7ee8f2;">En las piezas marcadas “a cambio” no hay factura que pagar: sube el documento que ampara el cambio.</b>':''}</div>
        ${cardsProv}`
     : '';
 
@@ -681,6 +687,20 @@ function reactivar(btnId){
   const b=document.getElementById(btnId); if(!b||!b.dataset.orig) return;
   b.textContent=b.dataset.orig;
   b.style.background='linear-gradient(135deg,#22d39a,#12a878)'; b.style.color='#04120c';
+}
+// Pieza que el proveedor repone sin cobrar: costo en 0 y solo se pide la evidencia del cambio.
+async function marcarACambio(refId, valor){
+  const r=refs.find(x=>x.id===refId); if(!r) return;
+  const msg = valor
+    ? 'Marcar “'+(r.descripcion||'la pieza')+'” como CAMBIO CON EL PROVEEDOR.\n\nEl costo queda en $0 y no se paga. Solo hay que subir el documento del cambio.\n\n¿Continuar?'
+    : 'Quitar la marca de “a cambio”. La pieza vuelve a capturarse con su costo real.\n\n¿Continuar?';
+  if(!confirm(msg)) return;
+  const b=document.getElementById('ac-'+refId); if(b){ b.disabled=true; b.textContent='Guardando...'; }
+  const upd = valor ? {a_cambio:true, costo_final:0} : {a_cambio:false, costo_final:null};
+  const {error}=await sb.from('tm_refacciones').update(upd).eq('id',refId);
+  if(error){ alert('No se pudo: '+error.message); if(b) b.disabled=false; return; }
+  registrarHistorial(r.servicio_id, (valor?'Pieza a cambio con el proveedor (sin costo): ':'Se quitó “a cambio” de: ')+(r.descripcion||''));
+  await cargarTodo(); if(activeId) abrir(activeId);
 }
 async function guardarCostoFinal(refId){
   const inp=document.getElementById('cf-'+refId);

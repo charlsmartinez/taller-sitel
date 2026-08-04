@@ -340,6 +340,16 @@ const ESPECIALES=['No Autorizado / Rechazado','Garantía','Cerrada por garantía
 // Candados: estatus destino -> evidencias requeridas
 // La evidencia de cada paso se sube ESTANDO en ese paso y habilita el siguiente.
 // GATES[destino] = lo que debe existir del paso en el que estás parado.
+// Evidencias del paso de Reparación cuando la orden es garantía
+const GATES_GAR={
+  mano_obra:['evidencia_mano_obra'],
+  refaccion:['refacciones_montadas','entrega_frontal','entrega_lateralDer','entrega_lateralIzq','entrega_trasera','entrega_tablero','entrega_motor','entrega_odometro']
+};
+// Devuelve las evidencias que exige un paso, considerando si la orden es garantía
+function gatesDe(s, paso){
+  if(s && s.es_garantia && paso==='Pendiente de OT' && s.garantia_tipo) return GATES_GAR[s.garantia_tipo]||[];
+  return GATES[paso]||[];
+}
 const GATES={
  'Autorizado':['cotizacion','envio_cotizacion'],                               // del 2 (Cotización): PDF + envío al cliente/Telmex
  'Compra de Refacciones y Reparación':['autorizacion'],                        // del 3 (Autorización)
@@ -374,7 +384,8 @@ const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  ticket_compra:'ticket o factura de compra de las refacciones',
  refacciones_usadas:'piezas que se quitaron',
  refacciones_compradas:'piezas cambiadas (nuevas)',
- refacciones_montadas:'piezas montadas',
+ refacciones_montadas:'piezas cambiadas por garantía',
+ evidencia_mano_obra:'foto del trabajo realizado',
  unidad_lista:'foto de la unidad lista para entrega',correo_ot:'foto del correo con la OT',
  correo_ot_cliente:'PDF de la OT (o foto del formato)',
  formato_entrega_firmado:'formato de entrega firmado',
@@ -788,7 +799,7 @@ function abrir(id){
   const ev=evisDe(id); const evT={}; ev.forEach(e=>evT[e.tipo]=e.url);
   const t=totales(s); const p=document.getElementById('panel');
   const next=(!especial&&idx>=0&&idx<PIPELINE.length-1)?PIPELINE[idx+1]:null;
-  const gate=(next && !s.es_garantia)?(GATES[next]||[]):[];   // garantía: mismo flujo, sin candados
+  const gate=(next && !s.es_garantia)?(gatesDe(s,next)):[];   // garantía: mismo flujo, sin candados
   const faltanEv=gate.filter(g=>!evT[g]);
   // Requisitos que no son archivos
   const pendientes=[];
@@ -891,6 +902,14 @@ function abrir(id){
       ${(editable && !s.garantia_tipo && s.estatus==='Cotización')?`
       <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
         <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:8px;">¿Por qué entró en garantía?</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+          <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','mano_obra')">🔧 Fue por MANO DE OBRA</button>
+          <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','refaccion')">⚙️ Fue por REFACCIÓN</button>
+        </div>
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Motivo de la garantía</div>
+        <textarea id="gar-motivo" placeholder="Por qué entró en garantía..." style="margin:0 0 7px;min-height:66px;">${s.observaciones||''}</textarea>
+        <button class="btn-sm" id="btn-gar-motivo" style="margin-bottom:14px;" onclick="setGarantiaMotivo('${id}')">Guardar motivo</button>
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:8px;">¿Qué se le hizo antes a esta unidad?</div>
         <div class="frow" style="margin-bottom:10px;">
           <div style="flex:1;min-width:170px;">
             <label style="font-size:10.5px;font-weight:700;color:var(--muted);">Económico de la unidad</label>
@@ -898,11 +917,7 @@ function abrir(id){
           </div>
           <button class="btn-sm" id="btn-gar-eco" style="align-self:flex-end;" onclick="setGarantiaEco('${id}')">Ver historial</button>
         </div>
-        <div id="gar-hist" style="background:rgba(0,0,0,.18);border-radius:9px;padding:11px 13px;margin-bottom:12px;max-height:210px;overflow-y:auto;">${cajaHistorialUnidad(id)}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','mano_obra')">🔧 Fue por MANO DE OBRA</button>
-          <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','refaccion')">⚙️ Fue por REFACCIÓN</button>
-        </div>
+        <div id="gar-hist" style="background:rgba(0,0,0,.18);border-radius:9px;padding:11px 13px;max-height:210px;overflow-y:auto;">${cajaHistorialUnidad(id)}</div>
       </div>`:''}
 
       ${(editable && s.garantia_tipo==='mano_obra' && s.estatus==='Cotización')?`
@@ -910,20 +925,33 @@ function abrir(id){
         <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Motivo de la garantía</div>
         <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">Esta orden no lleva cotización ni refacciones. Describe qué se hará y por qué.</div>
         <textarea id="gar-coment" placeholder="Qué se hará y por qué entró en garantía..." style="margin:0 0 10px;min-height:80px;">${s.observaciones||''}</textarea>
-        <button class="btn-sm" id="btn-gar-mo" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaManoObra('${id}')">Guardar y pasar a Entregar auto</button>
+        <button class="btn-sm" id="btn-gar-mo" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaManoObra('${id}')">Guardar y pasar a Reparación</button>
       </div>`:''}
 
-      ${(editable && s.garantia_tipo==='refaccion' && s.estatus==='Cotización')?`
+      ${(editable && s.garantia_tipo==='refaccion' && !s.garantia_subtipo && s.estatus==='Cotización')?`
+      <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">¿Cómo se resuelve la refacción?</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Las dos pasan por Compras. La diferencia es si hay que pagar la pieza o el proveedor la repone.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-sm" style="flex:1;min-width:180px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaSubtipo('${id}','cambio_proveedor')">🔄 Cambio con el proveedor<div style="font-weight:600;font-size:10.5px;opacity:.8;">El proveedor la repone · sin costo</div></button>
+          <button class="btn-sm" style="flex:1;min-width:180px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaSubtipo('${id}','reemplazo_costo')">💵 Reemplazo con costo<div style="font-weight:600;font-size:10.5px;opacity:.8;">Se compra la pieza de nuevo</div></button>
+        </div>
+      </div>`:''}
+
+      ${(editable && s.garantia_tipo==='refaccion' && s.garantia_subtipo && s.estatus==='Cotización')?`
       <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
         <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Cotización dirigida a Compras</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Genera el formato de cotización (ya va dirigido a <b>COMPRAS</b>), envíalo y sube la evidencia del envío. Después la orden pasa al paso de Compras.</div>
-        ${evisDe(id).some(e=>e.tipo==='correo_cotizacion')
-          ? `<div style="font-size:11.5px;font-weight:800;color:#3fe0ad;margin-bottom:10px;">✓ Evidencia de envío a Compras cargada</div>`
-          : `<label class="up up-sm" style="margin-bottom:10px;">📧 Subir evidencia de envío a Compras<input type="file" accept="image/*,application/pdf" onchange="subirGate('${id}','correo_cotizacion',this)"></label>`}
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">El formato de cotización ya va dirigido a <b>COMPRAS</b>. Al continuar, la orden pasa a su paso.</div>
+        <div style="font-size:11.5px;font-weight:800;color:${s.garantia_subtipo==='cambio_proveedor'?'#7ee8f2':'#ffd75e'};margin-bottom:10px;">
+          ${s.garantia_subtipo==='cambio_proveedor'
+            ? '🔄 Cambio con el proveedor · las piezas llegarán a Compras marcadas SIN COSTO; solo suben la evidencia del cambio.'
+            : '💵 Reemplazo con costo · Compras cotiza y compra normal.'}
+          <button class="btn-sm" style="margin-left:8px;padding:3px 9px;font-size:10.5px;" onclick="setGarantiaSubtipo('${id}',null)">Cambiar</button>
+        </div>
         <button class="btn-sm" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaARefaccion('${id}')">Pasar a Compras</button>
       </div>`:''}
 
-      ${(editable && s.garantia_tipo==='refaccion' && s.estatus==='Reparado')?`
+      ${(editable && s.estatus==='Reparado')?`
       <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
         <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">La reparación quedó lista. Al ser garantía, la orden pasa directo a <b>Entregar auto</b>.</div>
         <button class="btn-sm" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaAEntrega('${id}')">Pasar a Entregar auto</button>
@@ -1252,7 +1280,9 @@ function faltaParaCotizar(s){
   if(!(s.atencion||'').trim()) f.push('a quién va dirigida (ATENCIÓN)');
   // La mano de obra en 0 es válida (servicio sin cobro de mano de obra): no bloquea,
   // pero el panel lo advierte y se pide confirmación al avanzar.
-  if(s.mano_obra===null || s.mano_obra===undefined) f.push('la mano de obra');
+  // La mano de obra en 0 solo es válida en garantía; en órdenes normales debe capturarse
+  if(s.es_garantia){ if(s.mano_obra===null||s.mano_obra===undefined) f.push('la mano de obra'); }
+  else if(!Number(s.mano_obra)) f.push('la mano de obra');
   return f;
 }
 function paqueteBox(s,evT){
@@ -1590,9 +1620,38 @@ async function marcarGarantia(id){
 }
 async function quitarGarantia(id){
   if(!confirm('¿Quitar la marca de garantía? La orden vuelve al flujo normal.')) return;
-  const {error}=await sb.from('tm_servicios').update({es_garantia:false, garantia_tipo:null}).eq('id',id);
+  const {error}=await sb.from('tm_servicios').update({es_garantia:false, garantia_tipo:null, garantia_subtipo:null}).eq('id',id);
   if(error){ alert('No se pudo: '+error.message); return; }
   await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía · retirada por '+profile.nombre,usuario:profile.nombre});
+  await cargarTodo(); abrir(id);
+}
+async function setGarantiaMotivo(id){
+  const v=(document.getElementById('gar-motivo').value||'').trim();
+  const {error}=await sb.from('tm_servicios').update({observaciones:v||null}).eq('id',id);
+  if(error){ alert('No se pudo guardar: '+error.message); return; }
+  const s=servicios.find(x=>x.id===id); if(s) s.observaciones=v||null;
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía · motivo: '+v,usuario:profile.nombre});
+  okGuardado('btn-gar-motivo');
+}
+async function setGarantiaSubtipo(id, sub){
+  const s=servicios.find(x=>x.id===id); if(!s) return;
+  if(sub===null){
+    await sb.from('tm_servicios').update({garantia_subtipo:null}).eq('id',id);
+    await cargarTodo(); abrir(id); return;
+  }
+  const txt = sub==='cambio_proveedor'
+    ? 'CAMBIO CON EL PROVEEDOR\n\nLa orden pasa a Compras, pero las piezas van marcadas "a cambio": el costo queda en 0 y Compras solo sube la evidencia del cambio.\n\n¿Continuar?'
+    : 'REEMPLAZO CON COSTO\n\nLa orden pasa a Compras y ellos cotizan y compran la pieza de forma normal.\n\n¿Continuar?';
+  if(!confirm(txt)) return;
+  const {error}=await sb.from('tm_servicios').update({garantia_subtipo:sub}).eq('id',id);
+  if(error){ alert('No se pudo: '+error.message); return; }
+  // En cambio con proveedor, las piezas de la orden quedan sin costo desde el inicio
+  if(sub==='cambio_proveedor'){
+    await sb.from('tm_refacciones').update({a_cambio:true, costo:0, costo_final:0}).eq('servicio_id',id);
+  }
+  await sb.from('tm_historial').insert({servicio_id:id,
+    estatus:'Garantía · '+(sub==='cambio_proveedor'?'cambio con el proveedor (sin costo)':'reemplazo con costo'),
+    usuario:profile.nombre});
   await cargarTodo(); abrir(id);
 }
 async function setGarantiaEco(id){
@@ -1608,8 +1667,8 @@ async function setGarantiaEco(id){
 async function setGarantiaTipo(id, tipo){
   const s=servicios.find(x=>x.id===id); if(!s) return;
   const msg = tipo==='mano_obra'
-    ? 'GARANTÍA POR MANO DE OBRA\n\nLa orden no lleva cotización ni refacciones.\nCaptura el motivo y el sistema la llevará directo a "Entregar auto" para que subas las evidencias y quede cerrada.\n\n¿Continuar?'
-    : 'GARANTÍA POR REFACCIÓN\n\nSe genera la cotización dirigida a COMPRAS.\nAl enviarla, la orden pasa directo al paso de Compras para que ellos coticen y compren normal.\n\n¿Continuar?';
+    ? 'GARANTÍA POR MANO DE OBRA\n\nLa orden no lleva cotización ni refacciones.\nCaptura el motivo y el sistema la llevará a Reparación para que el mecánico suba la foto del trabajo, y de ahí a Entregar auto.\n\n¿Continuar?'
+    : 'GARANTÍA POR REFACCIÓN\n\nSe genera la cotización dirigida a COMPRAS.\nLa orden pasa directo al paso de Compras para que ellos coticen y compren normal.\n\n¿Continuar?';
   if(!confirm(msg)) return;
   const upd={garantia_tipo:tipo};
   if(tipo==='refaccion') upd.atencion='COMPRAS';
@@ -1643,21 +1702,19 @@ async function recorrerPasos(id, destino, motivo){
 async function garantiaManoObra(id){
   const txt=(document.getElementById('gar-coment').value||'').trim();
   if(!txt){ alert('Captura qué se hará y por qué, antes de continuar.'); return; }
-  if(!confirm('Se guardará el motivo y la orden avanzará a "Entregar auto".\n\nAhí subes las evidencias de entrega y queda cerrada por garantía.\n\n¿Continuar?')) return;
+  if(!confirm('Se guardará el motivo y la orden avanzará a Reparación.\n\nEl mecánico sube la foto del trabajo y de ahí pasa a Entregar auto.\n\n¿Continuar?')) return;
   const b=document.getElementById('btn-gar-mo'); if(b){ b.disabled=true; b.textContent='Procesando...'; }
   const {error}=await sb.from('tm_servicios').update({observaciones:txt, mano_obra:0}).eq('id',id);
   if(error){ alert('No se pudo guardar: '+error.message); if(b){b.disabled=false;b.textContent='Guardar y pasar a Entregar auto';} return; }
   await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía por mano de obra · '+txt,usuario:profile.nombre});
-  const ok=await recorrerPasos(id,'Auto Entregado','mano de obra');
-  if(b){ b.disabled=false; b.textContent='Guardar y pasar a Entregar auto'; }
+  const ok=await recorrerPasos(id,'Reparado','mano de obra');
+  if(b){ b.disabled=false; b.textContent='Guardar y pasar a Reparación'; }
   await cargarTodo(); if(ok) abrir(id);
 }
 
 // Garantía por refacción: enviar la cotización a Compras y saltar al paso de Compras
 async function garantiaARefaccion(id){
   const s=servicios.find(x=>x.id===id);
-  const ev=evisDe(id).some(e=>e.tipo==='correo_cotizacion');
-  if(!ev){ alert('Primero sube la evidencia de que enviaste la cotización a Compras.'); return; }
   if(!confirm('La orden pasará al paso de COMPRAS.\n\nDe ahí sigue el flujo normal: cotizan, compran y avanzan a Reparación.\n\n¿Continuar?')) return;
   const ok=await recorrerPasos(id,'Compra de Refacciones y Reparación','refacción');
   await cargarTodo(); if(ok) abrir(id);
