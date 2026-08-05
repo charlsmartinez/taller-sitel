@@ -246,8 +246,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
     <div class="kpis">
       <div class="kpi"><div class="t">Total de Servicios</div><div class="v" id="k-total">0</div><div class="sh">En esta plaza</div></div>
       <div class="kpi c click" id="kpi-auth" onclick="verGrupo('auth')" title="Ver estos servicios"><div class="t">En Proceso</div><div class="v" id="k-auth">0</div><div class="sh">Del diagnóstico a la entrega</div></div>
-      <div class="kpi b click" id="kpi-taller" onclick="verGrupo('taller')" title="Ver estos servicios"><div class="t">En Facturación</div><div class="v" id="k-taller">0</div><div class="sh">Entregado · en trámite de factura</div></div>
-      <div class="kpi d click" id="kpi-porfact" onclick="verGrupo('porfact')" title="Ver estos servicios"><div class="t">Factura Entregada</div><div class="v" id="k-porfact">0</div><div class="sh">Proceso cerrado · pagado</div></div>
+      <div class="kpi b click" id="kpi-taller" onclick="verGrupo('taller')" title="Ver estos servicios"><div class="t">En Facturación</div><div class="v" id="k-taller">0</div><div class="sh">En trámite de factura</div></div>
+      <div class="kpi d click" id="kpi-porfact" onclick="verGrupo('porfact')" title="Ver estos servicios"><div class="t">Factura Entregada</div><div class="v" id="k-porfact">0</div><div class="sh">Enviada a Telmex</div></div>
       <div class="kpi f dinero" id="kpi-costo"><div class="t">Refacciones Costo</div><div class="v" id="k-costo">$0.00</div><div class="sh">Lo que se pagó a proveedores</div></div>
       <div class="kpi f dinero" id="kpi-refcli"><div class="t">Refacciones Facturadas a Cliente</div><div class="v" id="k-refcli">$0.00</div><div class="sh">Piezas con su aumento</div></div>
       <div class="kpi g dinero" id="kpi-mo"><div class="t">Mano de Obra</div><div class="v" id="k-mo">$0.00</div><div class="sh">Trabajo cobrado</div></div>
@@ -255,7 +255,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="kpi e dinero" id="kpi-utilref"><div class="t">Utilidad Refacciones</div><div class="v" id="k-utilref">$0.00</div><div class="sh">Facturado a cliente − costo</div></div>
       <div class="kpi e dinero" id="kpi-util"><div class="t">Utilidad Refacciones + Mano de Obra</div><div class="v" id="k-util">$0.00</div><div class="sh">Utilidad bruta</div></div>
       <div class="kpi b dinero" id="kpi-fact"><div class="t">Facturas Emitidas</div><div class="v" id="k-factn">0</div><div class="sh" id="k-factd">$0.00 en total</div></div>
-      <div class="kpi a dinero" id="kpi-xcobrar"><div class="t">Pendiente de Cobro</div><div class="v" id="k-xcobrard">$0.00</div><div class="sh" id="k-xcobrarn">0 facturas · 0 unidades</div></div>
+      <div class="kpi a dinero" id="kpi-xcobrar"><div class="t">Pendiente de Cobro</div><div class="v" id="k-xcobrarn">0</div><div class="sh" id="k-xcobrard">$0.00 por cobrar</div></div>
+      <div class="kpi d dinero" id="kpi-pagadas"><div class="t">Órdenes Pagadas</div><div class="v" id="k-pagadasn">0</div><div class="sh" id="k-pagadasd">$0.00 cobrado</div></div>
     </div>
     <div class="board">
       <div class="board-top">
@@ -344,7 +345,8 @@ const ESPECIALES=['No Autorizado / Rechazado','Garantía','Cerrada por garantía
 // GATES[destino] = lo que debe existir del paso en el que estás parado.
 // Evidencias del paso de Reparación cuando la orden es garantía
 const GATES_GAR={
-  mano_obra:['evidencia_mano_obra'],
+  // Mano de obra: las de siempre MÁS la foto de dónde se aplicó el trabajo
+  mano_obra:['evidencia_mano_obra','refacciones_usadas','refacciones_compradas','refacciones_montadas','entrega_frontal','entrega_lateralDer','entrega_lateralIzq','entrega_trasera','entrega_tablero','entrega_motor','entrega_odometro'],
   refaccion:['refacciones_montadas','entrega_frontal','entrega_lateralDer','entrega_lateralIzq','entrega_trasera','entrega_tablero','entrega_motor','entrega_odometro']
 };
 // Devuelve las evidencias que exige un paso, considerando si la orden es garantía
@@ -443,7 +445,7 @@ async function login(){
 async function iniciar(user){
   const { data:prof }=await sb.from('tm_profiles').select('id,nombre,rol,plaza_id,tm_plazas(nombre)').eq('id',user.id).single();
   if(!prof){ document.getElementById('l-msg').textContent='Usuario sin perfil.'; await sb.auth.signOut(); return; }
-  if(prof.rol!=='super' && prof.rol!=='admin' && prof.rol!=='gerente'){
+  if(!['super','admin','gerente','direccion'].includes(prof.rol)){
     document.getElementById('l-msg').textContent = prof.rol==='contabilidad'
       ? 'Tu acceso es el panel de Contabilidad, no este. Regresa al inicio y elige "Contabilidad".'
       : 'Tu acceso es la app de Mecánico, no este panel. Regresa al inicio y elige "Soy Mecánico".';
@@ -710,9 +712,9 @@ function limpiarFiltros(){
 
 // ===== GRUPOS DE ESTATUS (para los totales clickeables) =====
 const GRUPOS={
-  auth:{ nombre:'En Proceso', estatus:PIPELINE.slice(0,8) },                 // pasos 1 al 8
-  taller:{ nombre:'En Facturación', estatus:PIPELINE.slice(8,11) },          // pasos 9 al 11
-  porfact:{ nombre:'Factura Entregada', estatus:PIPELINE.slice(11,12) }      // paso 12
+  auth:{ nombre:'En Proceso', estatus:PIPELINE.slice(0,7) },                 // del diagnóstico a entregar el auto
+  taller:{ nombre:'En Facturación', estatus:PIPELINE.slice(7,9) },           // pendiente de factura y factura emitida
+  porfact:{ nombre:'Factura Entregada', estatus:PIPELINE.slice(9,11) }       // enviada a Telmex y pagada
 };
 let grupoActivo=null;
 
@@ -756,8 +758,14 @@ function render(){
   const xCobrar = emitidas.filter(x=>x.estatus!=='Factura Pagada');
   const montoXCobrar = Math.round(xCobrar.reduce((a,x)=>a+montoDe(x),0)*100)/100;
   const unidadesXCobrar = new Set(xCobrar.map(x=>x.economico).filter(Boolean)).size;
-  document.getElementById('k-xcobrard').textContent = fmt(montoXCobrar);
-  document.getElementById('k-xcobrarn').textContent = xCobrar.length+' factura'+(xCobrar.length===1?'':'s')+' · '+unidadesXCobrar+' unidad'+(unidadesXCobrar===1?'':'es');
+  document.getElementById('k-xcobrarn').textContent = xCobrar.length;
+  document.getElementById('k-xcobrard').textContent = fmt(montoXCobrar)+' · '+unidadesXCobrar+' unidad'+(unidadesXCobrar===1?'':'es');
+
+  // Órdenes ya pagadas y el dinero que entró
+  const pagadas = servicios.filter(x=>x.estatus==='Factura Pagada');
+  const montoPagado = Math.round(pagadas.reduce((a,x)=>a+montoDe(x),0)*100)/100;
+  document.getElementById('k-pagadasn').textContent = pagadas.length;
+  document.getElementById('k-pagadasd').textContent = fmt(montoPagado)+' cobrado';
   // El supervisor no ve montos: solo lo que necesita para operar
   document.querySelectorAll('.kpi.dinero').forEach(el=>{ el.style.display = veDinero()?'':'none'; });
   // marcar visualmente el grupo seleccionado
@@ -882,7 +890,7 @@ function abrir(id){
     const nom=(GNOM[k]||k).replace('entrega: ','').replace('unidad lista: ','');
     const ext=extDe(u)||'jpg';
     const vista = esFoto(u)
-      ? `<img src="${u}" onclick="lb('${u}')">`
+      ? `<img src="${u}" onclick="lb('${u}')" onerror="this.outerHTML='<a class=\'doc\' href=\'${u}\' target=\'_blank\' title=\'Abrir ${nom}\'><span class=\'i\'>📎</span><span class=\'e\'>VER</span></a>'">`
       : `<a class="doc" href="${u}" target="_blank" title="Abrir ${nom}"><span class="i">${iconoDe(u)}</span><span class="e">${ext.toUpperCase()}</span></a>`;
     const rep = (puedeReemplazar && REEMPLAZABLES.includes(k))
       ? `<label class="rep-ev" title="Reemplazar esta foto">✎<input type="file" accept="image/*" style="display:none;" onchange="reemplazarEv('${id}','${k}',this)"></label>` : '';
@@ -929,14 +937,14 @@ function abrir(id){
 
       ${(editable && !s.garantia_tipo && s.estatus==='Cotización')?`
       <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
+        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Motivo de la garantía</div>
+        <textarea id="gar-motivo" placeholder="Por qué entró en garantía..." style="margin:0 0 7px;min-height:66px;">${s.observaciones||''}</textarea>
+        <button class="btn-sm" id="btn-gar-motivo" style="margin-bottom:16px;" onclick="setGarantiaMotivo('${id}')">Guardar motivo</button>
         <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:8px;">¿Por qué entró en garantía?</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
           <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','mano_obra')">🔧 Fue por MANO DE OBRA</button>
           <button class="btn-sm" style="flex:1;min-width:170px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaTipo('${id}','refaccion')">⚙️ Fue por REFACCIÓN</button>
         </div>
-        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Motivo de la garantía</div>
-        <textarea id="gar-motivo" placeholder="Por qué entró en garantía..." style="margin:0 0 7px;min-height:66px;">${s.observaciones||''}</textarea>
-        <button class="btn-sm" id="btn-gar-motivo" style="margin-bottom:14px;" onclick="setGarantiaMotivo('${id}')">Guardar motivo</button>
         <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:8px;">¿Qué se le hizo antes a esta unidad?</div>
         <div class="frow" style="margin-bottom:10px;">
           <div style="flex:1;min-width:170px;">
@@ -950,10 +958,8 @@ function abrir(id){
 
       ${(editable && s.garantia_tipo==='mano_obra' && s.estatus==='Cotización')?`
       <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
-        <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">Motivo de la garantía</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">Esta orden no lleva cotización ni refacciones. Describe qué se hará y por qué.</div>
-        <textarea id="gar-coment" placeholder="Qué se hará y por qué entró en garantía..." style="margin:0 0 10px;min-height:80px;">${s.observaciones||''}</textarea>
-        <button class="btn-sm" id="btn-gar-mo" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaManoObra('${id}')">Guardar y pasar a Reparación</button>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Esta orden no lleva cotización ni refacciones. ${(s.observaciones||'').trim()?'El motivo ya quedó capturado arriba.':'<b style="color:#ffd75e;">Captura arriba el motivo antes de continuar.</b>'}</div>
+        <button class="btn-sm" id="btn-gar-mo" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaManoObra('${id}')">Pasar a Reparación</button>
       </div>`:''}
 
       ${(editable && s.garantia_tipo==='refaccion' && !s.garantia_subtipo && s.estatus==='Cotización')?`
@@ -1040,13 +1046,16 @@ function abrir(id){
       ${s.estatus==='Garantía'?`<button class="btn-sm" onclick="regresarACotizacion('${id}')">↩ Regresar a Cotización</button>`:''}
     </div>` : '';
 
+  // En garantía el recorrido lo maneja su propio bloque (morado). Mostrar aquí los
+  // botones del flujo normal desviaría la orden y rompería el circuito de garantía.
+  const enGarantia = !!s.es_garantia && s.estatus!=='Cerrada por garantía';
   const botones = (!especial&&editable) ? `
-    ${next?(puedeMover
+    ${(next&&!enGarantia)?(puedeMover
       ? `<button class="btn-adv" ${(faltanEv.length||faltanCampos.length||pendientes.length)?'disabled':''} onclick="avanzar('${id}')">${TXT_BTN[next]||('Avanzar a: '+next)} →</button>`
       : `<div class="gate" style="background:rgba(169,123,255,.1);border-color:rgba(169,123,255,.3);color:#c9adff;display:inline-block;margin:0;">🧾 El siguiente paso lo realiza <b>Contabilidad</b>.</div>`):''}
-    ${(idx>0 && puedeAvanzarA(PIPELINE[idx-1]) && (s.estatus!=='Factura Pagada'||esAdmin()))?`<button class="btn-back" onclick="retroceder('${id}')" title="Regresar al paso anterior">← Regresar a: ${CORTO[idx-1]}</button>`:''}
-    ${s.estatus==='Autorizado'?`<button class="btn-rej" onclick="marcar('${id}','No Autorizado / Rechazado')">✕ No autorizado / Rechazado</button>`:''}
-    ${((s.estatus==='Autorizado'||s.estatus==='Compra de Refacciones y Reparación'||s.estatus==='Reparado')&&editable&&!s.ot)?`<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:11px 14px;margin:8px 0;"><div style="font-size:11px;font-weight:800;color:#93b4ff;margin-bottom:6px;">NÚMERO DE OT (puedes capturarla desde aquí)</div><div style="display:flex;gap:8px;"><input type="text" id="ot-early-${id}" placeholder="Número de OT" value="${(s.ot||'').replace(/"/g,'&quot;')}" style="flex:1;margin:0;"><button class="btn-sm" onclick="guardarOT('${id}')">Guardar OT</button></div></div>`:''}
+    ${(!enGarantia && idx>0 && puedeAvanzarA(PIPELINE[idx-1]) && (s.estatus!=='Factura Pagada'||esAdmin()))?`<button class="btn-back" onclick="retroceder('${id}')" title="Regresar al paso anterior">← Regresar a: ${CORTO[idx-1]}</button>`:''}
+    ${(!enGarantia && s.estatus==='Autorizado')?`<button class="btn-rej" onclick="marcar('${id}','No Autorizado / Rechazado')">✕ No autorizado / Rechazado</button>`:''}
+    ${(!enGarantia && (s.estatus==='Autorizado'||s.estatus==='Compra de Refacciones y Reparación'||s.estatus==='Reparado')&&editable&&!s.ot)?`<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:11px 14px;margin:8px 0;"><div style="font-size:11px;font-weight:800;color:#93b4ff;margin-bottom:6px;">NÚMERO DE OT (puedes capturarla desde aquí)</div><div style="display:flex;gap:8px;"><input type="text" id="ot-early-${id}" placeholder="Número de OT" value="${(s.ot||'').replace(/"/g,'&quot;')}" style="flex:1;margin:0;"><button class="btn-sm" onclick="guardarOT('${id}')">Guardar OT</button></div></div>`:''}
     ${(s.ot&&(s.estatus==='Autorizado'||s.estatus==='Compra de Refacciones y Reparación'||s.estatus==='Reparado'||s.estatus==='Pendiente de OT'))?`<div style="font-size:12px;color:#22d39a;margin:6px 0;">✓ OT capturada: <b>${s.ot}</b></div>`:''}
     ${s.estatus==='Cotización'?`<button class="btn-gar" onclick="marcarGarantia('${id}')">🛡️ Marcar como Garantía</button>`:''}` : '';
 
@@ -1707,14 +1716,17 @@ async function setGarantiaTipo(id, tipo){
 }
 
 // Recorre los pasos intermedios dejándolos anotados, sin saltarse ninguna regla
-async function recorrerPasos(id, destino, motivo){
+async function recorrerPasos(id, destino, motivo, saltar){
   const s=servicios.find(x=>x.id===id);
   let i=PIPELINE.indexOf(s.estatus);
   const fin=PIPELINE.indexOf(destino);
   if(i<0||fin<0||fin<=i) return true;
+  const omitir=new Set(saltar||[]);
   while(i<fin){
     i++;
     const paso=PIPELINE[i];
+    // Garantía por mano de obra: Compras no interviene, ni siquiera de paso
+    if(omitir.has(paso) && i<fin) continue;
     const {error}=await sb.from('tm_servicios').update({estatus:paso}).eq('id',id);
     if(error){ alert('No se pudo avanzar a "'+nomPaso(paso)+'": '+error.message); return false; }
     await sb.from('tm_historial').insert({
@@ -1728,15 +1740,16 @@ async function recorrerPasos(id, destino, motivo){
 
 // Garantía por mano de obra: capturar el motivo y saltar a Entregar auto
 async function garantiaManoObra(id){
-  const txt=(document.getElementById('gar-coment').value||'').trim();
-  if(!txt){ alert('Captura qué se hará y por qué, antes de continuar.'); return; }
+  const s0=servicios.find(x=>x.id===id);
+  const txt=((s0&&s0.observaciones)||'').trim();
+  if(!txt){ alert('Primero captura y guarda el motivo de la garantía, arriba.'); return; }
   if(!confirm('Se guardará el motivo y la orden avanzará a Reparación.\n\nEl mecánico sube la foto del trabajo y de ahí pasa a Entregar auto.\n\n¿Continuar?')) return;
   const b=document.getElementById('btn-gar-mo'); if(b){ b.disabled=true; b.textContent='Procesando...'; }
-  const {error}=await sb.from('tm_servicios').update({observaciones:txt, mano_obra:0}).eq('id',id);
+  const {error}=await sb.from('tm_servicios').update({mano_obra:0}).eq('id',id);
   if(error){ alert('No se pudo guardar: '+error.message); if(b){b.disabled=false;b.textContent='Guardar y pasar a Entregar auto';} return; }
   await sb.from('tm_historial').insert({servicio_id:id,estatus:'Garantía por mano de obra · '+txt,usuario:profile.nombre});
-  const ok=await recorrerPasos(id,'Reparado','mano de obra');
-  if(b){ b.disabled=false; b.textContent='Guardar y pasar a Reparación'; }
+  const ok=await recorrerPasos(id,'Reparado','mano de obra',['Compra de Refacciones y Reparación']);
+  if(b){ b.disabled=false; b.textContent='Pasar a Reparación'; }
   await cargarTodo(); if(ok) abrir(id);
 }
 

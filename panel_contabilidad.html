@@ -187,9 +187,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="kpi a"><div class="t">Órdenes por Facturar</div><div class="v" id="k-pend">0</div></div>
       <div class="kpi b"><div class="t">Facturas Emitidas</div><div class="v" id="k-factn">0</div><div class="sh" id="k-factd">$0.00 en total</div></div>
       <div class="kpi c"><div class="t">Enviadas a Telmex</div><div class="v" id="k-env">0</div></div>
-      <div class="kpi d"><div class="t">Pagadas</div><div class="v" id="k-pag">0</div></div>
       <div class="kpi a"><div class="t">Pendiente de Cobro</div><div class="v" id="k-xcobrard">$0.00</div><div class="sh" id="k-xcobrarn">0 facturas · 0 unidades</div></div>
-      <div class="kpi d"><div class="t">Monto Cobrado</div><div class="v" id="k-cobrado">$0.00</div></div>
+      <div class="kpi d"><div class="t">Órdenes Pagadas</div><div class="v" id="k-pag">0</div><div class="sh" id="k-cobrado">$0.00 cobrado</div></div>
     </div>
     <div class="board">
       <div class="board-top">
@@ -236,7 +235,7 @@ const ETIQ={num_factura:'Número de factura',fecha_factura:'Fecha de factura',fe
 // La evidencia se sube estando en el paso y habilita el siguiente.
 const GATES={
  'Contabilidad Emitió Factura':['factura_pdf','factura_xml'],  // del 9: contabilidad sube la factura
- 'Se Envía Factura a Telmex':['acuse_recepcion_telmex'],       // del 10: lo sube el generalista
+ 'Se Envía Factura a Telmex':[],                                // del 10: el acuse lo sube el generalista, no contabilidad
  'Factura Pagada':[]};                                          // del 11: solo la fecha de pago
 const GNOM={factura:'foto/PDF de la factura emitida',
  factura_pdf:'factura en PDF',
@@ -263,12 +262,19 @@ async function login(){
 async function iniciar(user){
   const { data:prof }=await sb.from('tm_profiles').select('id,nombre,rol').eq('id',user.id).single();
   if(!prof){ document.getElementById('l-msg').textContent='Usuario sin perfil.'; await sb.auth.signOut(); return; }
-  if(prof.rol!=='contabilidad' && prof.rol!=='admin' && prof.rol!=='gerente'){
+  if(!['contabilidad','admin','gerente','conta_lectura'].includes(prof.rol)){
     document.getElementById('l-msg').textContent='Este panel es solo para Contabilidad.'; await sb.auth.signOut(); return;
   }
   profile={ id:prof.id, nombre:prof.nombre||user.email, rol:prof.rol };
   document.getElementById('who-name').textContent=profile.nombre;
-  document.getElementById('who-rol').textContent=profile.rol.toUpperCase()+' · Todas las plazas';
+  document.getElementById('who-rol').textContent =
+    (profile.rol==='conta_lectura' ? 'CONTABILIDAD · SOLO CONSULTA' : profile.rol.toUpperCase()) + ' · Todas las plazas';
+  if(profile.rol==='conta_lectura'){
+    const b=document.createElement('div');
+    b.style.cssText='background:rgba(0,208,230,.1);border:1px solid rgba(0,208,230,.35);color:#7ee8f2;border-radius:9px;padding:8px 12px;margin:10px 0 0;font-size:11px;font-weight:700;text-align:center;line-height:1.4;';
+    b.innerHTML='👁️ Sesión de consulta<div style="font-weight:600;color:var(--muted);margin-top:2px;">Puedes ver y exportar todo. No se modifica nada.</div>';
+    document.querySelector('.who').insertAdjacentElement('afterend', b);
+  }
   document.getElementById('login').classList.add('hide');
   document.getElementById('sb-side').classList.remove('hide');
   document.getElementById('sb-main').classList.remove('hide');
@@ -410,7 +416,7 @@ function render(){
   document.getElementById('k-pend').textContent=cnt(ENTRADA);
   document.getElementById('k-env').textContent=cnt('Se Envía Factura a Telmex');
   document.getElementById('k-pag').textContent=pagadas.length;
-  document.getElementById('k-cobrado').textContent=fmt(cobrado);
+  document.getElementById('k-cobrado').textContent=fmt(cobrado)+' cobrado';
   // Facturación — sobre todo el histórico que ve contabilidad
   const emitidas=plazaSet.filter(x=>x.num_factura && String(x.num_factura).trim());
   const montoDe=x=>{ const t=totales(x); return (x.importe_pagado!=null && Number(x.importe_pagado)>0)?Number(x.importe_pagado):t.total; };
@@ -461,7 +467,7 @@ function render(){
       <td><b>${s.vehiculo||'—'}</b><div class="sub">${s.placas||'—'}</div></td>
       <td>${s.num_factura?`<b>${s.num_factura}</b><div class="sub">${s.fecha_factura||''}</div>`:'<span class="sub">—</span>'}</td>
       <td style="font-weight:700;font-variant-numeric:tabular-nums;">${fmt(t.total)}</td>
-      <td><span class="badge" style="background:${COLOR[s.estatus]};">${NUM[s.estatus]}. ${CORTO[s.estatus]}</span></td>`;
+      <td><span class="badge" style="background:${COLOR[s.estatus]};">${s.estatus===EN_CAMINO?CORTO[s.estatus]:(NUM[s.estatus]+'. '+CORTO[s.estatus])}</span></td>`;
     tb.appendChild(tr);
   });
 }
@@ -471,6 +477,7 @@ function abrir(id){
   const idx = FLUJO.indexOf(s.estatus);
   const next = siguiente(s.estatus);
   const ev=evisDe(id); const evT={}; ev.forEach(e=>evT[e.tipo]=e.url);
+  const soloConsulta = profile && profile.rol==='conta_lectura';
   const t=totales(s); const p=document.getElementById('panel');
   const campos=next?(CAMPOS[next]||[]):[]; const faltanCampos=campos.filter(c=>!s[c]);
   const gate=next?(GATES[next]||[]):[]; const faltanEv=gate.filter(g=>!evT[g]);
@@ -490,17 +497,31 @@ function abrir(id){
   const nombreCorto={factura_pdf:'factura PDF',factura_xml:'factura XML',acuse_recepcion_telmex:'acuse Telmex',factura:'factura',correo_recepcion_ot:'recepción OT',comprobante_pago:'pago'};
   const gitemC=(k,nom)=>{
     const u=evT[k]; const ext=extDe(u)||'jpg';
-    const vista = esFoto(u) ? `<img src="${u}" onclick="lb('${u}')">`
+    const vista = esFoto(u) ? `<img src="${u}" onclick="lb('${u}')" onerror="this.outerHTML='<a class=\'doc\' href=\'${u}\' target=\'_blank\'><span class=\'i\'>📎</span><span class=\'e\'>VER</span></a>'">`
       : `<a class="doc" href="${u}" target="_blank" title="Abrir ${nom}"><span class="i">${iconoDe(u)}</span><span class="e">${ext.toUpperCase()}</span></a>`;
     return `<div class="gitem">${vista}<a class="dl" href="${u}" download="${k}.${ext}" target="_blank" onclick="event.stopPropagation()" title="Descargar">⬇</a><span class="tg">${nom}</span></div>`;
   };
   const galFact=docs.map(k=>gitemC(k,nombreCorto[k])).join('');
   // Todo lo que documentó la plaza (para consulta y descarga)
-  const RELEVANTES=['cotizacion','correo_ot_cliente','formato_entrega_firmado','identificacion_receptor'];
-  const otras=RELEVANTES.filter(k=>evT[k]);
+  // Se muestran TODAS las evidencias de la orden, no una lista fija:
+  // así no se "pierden" fotos que sí existen y se ven en el panel de control.
   const NOMB={cotizacion:'cotización',correo_ot_cliente:'OT del cliente',
-    formato_entrega_firmado:'formato firmado',identificacion_receptor:'identificación'};
-  const galOtras=otras.map(k=>gitemC(k, NOMB[k] || k.replace('entrega_','entrega ').replace('extra_','extra ').replace('pieza_','pieza '))).join('');
+    formato_entrega_firmado:'formato firmado',identificacion_receptor:'identificación',
+    autorizacion:'autorización',envio_cotizacion:'envío de cotización',
+    refacciones_usadas:'piezas que se quitaron',refacciones_compradas:'piezas nuevas',
+    refacciones_montadas:'piezas montadas',evidencia_mano_obra:'trabajo realizado',
+    frontal:'frontal',lateralDer:'lateral der.',lateralIzq:'lateral izq.',trasera:'trasera',
+    tablero:'tablero',motor:'motor',odometro:'odómetro',ticket_compra:'ticket de compra'};
+  const nombreEv=(k)=>{
+    if(NOMB[k]) return NOMB[k];
+    const base=k.replace(/_\d+$/,''); const n=(k.match(/_(\d+)$/)||[])[1];
+    const raiz=NOMB[base]||base.replace('entrega_','entrega ').replace('extra_','extra ').replace('pieza_','pieza ').replace(/_/g,' ');
+    return n?`${raiz} ${n}`:raiz;
+  };
+  const otras=Object.keys(evT)
+    .filter(k=>!docs.includes(k) && !k.startsWith('factura_refaccion_'))
+    .sort();
+  const galOtras=otras.map(k=>gitemC(k, nombreEv(k))).join('');
 
   const partsRows=refsDe(id).map(r=>{
     const elec = r.tipo_pieza==='electrica';
@@ -598,7 +619,7 @@ function abrir(id){
     accion=`<div class="gate ok">✓ Factura pagada. Proceso cerrado.</div>`;
   }
 
-  if(enCamino){ accion=''; capturaHtml=''; }
+  if(enCamino || soloConsulta){ accion=''; capturaHtml=''; }
   p.innerHTML=`<span class="pclose" onclick="cerrar()">✕ Cerrar</span>
     <h2 style="clear:both;">🧾 ${s.economico||s.folio||'—'} <span style="font-size:13px;color:var(--muted);font-weight:600;">${s.vehiculo||''}</span></h2>
     <div style="display:flex;gap:3px;margin:16px 0;flex-wrap:wrap;">${pipe}</div>

@@ -451,7 +451,19 @@ function irA(v){
 // ── Paso 6: evidencias de reparación ──
 // En garantía se piden otras evidencias, según por qué regresó la unidad
 const EV_GAR={
-  mano_obra:[ {k:'evidencia_mano_obra', n:'Foto del trabajo realizado', multi:true} ],
+  // Mano de obra: las de siempre MÁS la foto de dónde se aplicó el trabajo
+  mano_obra:[ {k:'evidencia_mano_obra', n:'Dónde se aplicó la mano de obra', multi:true} ].concat([
+    {k:'refacciones_usadas',   n:'Piezas que se quitaron',    multi:true},
+    {k:'refacciones_compradas',n:'Piezas cambiadas (nuevas)', multi:true},
+    {k:'refacciones_montadas', n:'Piezas montadas',           multi:true},
+    {k:'entrega_frontal',    n:'Frontal'},
+    {k:'entrega_lateralDer', n:'Lateral derecho'},
+    {k:'entrega_lateralIzq', n:'Lateral izquierdo'},
+    {k:'entrega_trasera',    n:'Trasera'},
+    {k:'entrega_tablero',    n:'Tablero'},
+    {k:'entrega_motor',      n:'Motor'},
+    {k:'entrega_odometro',   n:'Odómetro'}
+  ]),
   refaccion:[
     {k:'refacciones_montadas', n:'Piezas cambiadas por garantía', multi:true},
     {k:'entrega_frontal',    n:'Frontal'},
@@ -562,7 +574,9 @@ function abrirReparacion(id){
       <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">Sube solo las evidencias que se piden abajo.</div>
     </div>`:''}
     ${(o.es_garantia && o.garantia_tipo==='mano_obra')
-      ? bloque('Evidencia del trabajo', evidenciasDe(o))
+      ? `${bloque('Dónde se aplicó la mano de obra', evidenciasDe(o).slice(0,1))}
+         ${bloque('Refacciones', evidenciasDe(o).slice(1,4))}
+         ${bloque('Fotos de la unidad lista', evidenciasDe(o).slice(4))}`
       : `${bloque('Refacciones', evidenciasDe(o).slice(0, o.es_garantia?1:3))}
          ${bloque('Fotos de la unidad lista', evidenciasDe(o).slice(o.es_garantia?1:3))}`}
     <div class="msg" id="rep-msg" style="margin-top:12px;"></div>
