@@ -185,13 +185,11 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
   <div class="body">
     <div class="kpis">
       <div class="kpi a"><div class="t">Órdenes por Facturar</div><div class="v" id="k-pend">0</div></div>
-      <div class="kpi b"><div class="t">Facturas Emitidas</div><div class="v" id="k-emit">0</div></div>
+      <div class="kpi b"><div class="t">Facturas Emitidas</div><div class="v" id="k-factn">0</div><div class="sh" id="k-factd">$0.00 en total</div></div>
       <div class="kpi c"><div class="t">Enviadas a Telmex</div><div class="v" id="k-env">0</div></div>
       <div class="kpi d"><div class="t">Pagadas</div><div class="v" id="k-pag">0</div></div>
-      <div class="kpi a"><div class="t">Monto por Cobrar</div><div class="v" id="k-porcobrar">$0.00</div></div>
-      <div class="kpi d"><div class="t">Monto Cobrado</div><div class="v" id="k-cobrado">$0.00</div></div>
-      <div class="kpi b"><div class="t">Facturas Emitidas</div><div class="v" id="k-factn">0</div><div class="sh" id="k-factd">$0.00 en total</div></div>
       <div class="kpi a"><div class="t">Pendiente de Cobro</div><div class="v" id="k-xcobrard">$0.00</div><div class="sh" id="k-xcobrarn">0 facturas · 0 unidades</div></div>
+      <div class="kpi d"><div class="t">Monto Cobrado</div><div class="v" id="k-cobrado">$0.00</div></div>
     </div>
     <div class="board">
       <div class="board-top">
@@ -229,9 +227,9 @@ const VISIBLES=[EN_CAMINO,'Pendiente de Factura','Contabilidad Emitió Factura',
 const FLUJO=VISIBLES.filter(x=>x!==EN_CAMINO);          // los pasos que contabilidad sí trabaja
 const siguiente=(est)=>{ const i=FLUJO.indexOf(est); return (i>=0&&i<FLUJO.length-1)?FLUJO[i+1]:null; };
 const contaEjecuta=(dest)=>CONTA.includes(dest);        // 10, 11 y 13 son suyos; el 12 es del generalista
-const NUM={'Pendiente de Factura':9,'Contabilidad Emitió Factura':10,'Se Envía Factura a Telmex':11,'Factura Pagada':12};
-const CORTO={'Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada a TMX','Factura Pagada':'Factura pagada'};
-const COLOR={'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37'};
+const NUM={'Auto Entregado':8,'Pendiente de Factura':9,'Contabilidad Emitió Factura':10,'Se Envía Factura a Telmex':11,'Factura Pagada':12};
+const CORTO={'Auto Entregado':'En camino','Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada a TMX','Factura Pagada':'Factura pagada'};
+const COLOR={'Auto Entregado':'#8b93b8','Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37'};
 // Campos requeridos para avanzar
 const CAMPOS={'Contabilidad Emitió Factura':['num_factura','fecha_factura'],'Factura Pagada':['fecha_pago']};  // número y fecha al emitir; fecha de pago al cerrar
 const ETIQ={num_factura:'Número de factura',fecha_factura:'Fecha de factura',fecha_pago:'Fecha de pago',importe_pagado:'Importe pagado en la factura'};
@@ -410,10 +408,8 @@ function render(){
   pagadas.forEach(s=>{ const t=totales(s); cobrado+=t.total; });
   porCobrar.forEach(s=>{ const t=totales(s); pc+=t.total; });
   document.getElementById('k-pend').textContent=cnt(ENTRADA);
-  document.getElementById('k-emit').textContent=cnt('Contabilidad Emitió Factura');
   document.getElementById('k-env').textContent=cnt('Se Envía Factura a Telmex');
   document.getElementById('k-pag').textContent=pagadas.length;
-  document.getElementById('k-porcobrar').textContent=fmt(pc);
   document.getElementById('k-cobrado').textContent=fmt(cobrado);
   // Facturación — sobre todo el histórico que ve contabilidad
   const emitidas=plazaSet.filter(x=>x.num_factura && String(x.num_factura).trim());
@@ -540,9 +536,19 @@ function abrir(id){
 
   // Los campos y las casillas de carga se quedan siempre visibles: al guardarse cambian a verde con su valor.
   const evRow = g => {
-    const ya = !!evT[g];
-    const ok = 'border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
-    return `<label class="up" style="${ya?ok:''}">${ya?'✓':'🧾'} ${GNOM[g]||g}${ya?' · Guardado':''}<input type="file" accept="image/*,application/pdf,.xml" onchange="subirGate('${id}','${g}',this)"></label>`;
+    const url = evT[g];
+    const et = GNOM[g]||g;
+    if(!url) return `<label class="up">🧾 Subir ${et}<input type="file" accept="image/*,application/pdf,.xml" onchange="subirGate('${id}','${g}',this)"></label>`;
+    // Ya cargado: además de marcarlo, hay que poder abrirlo, descargarlo o reemplazarlo
+    const nombre=((s.num_factura||s.cot||'archivo')+'_'+g).replace(/[^\w\-]+/g,'_');
+    return `<div style="border:1px solid rgba(34,211,154,.45);background:rgba(34,211,154,.09);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+      <div style="font-size:10.5px;font-weight:800;color:#3fe0ad;margin-bottom:7px;">✓ ${et.toUpperCase()} · GUARDADO</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a href="${url}" target="_blank" rel="noopener" class="btn-sm" style="text-decoration:none;padding:5px 11px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">👁️ Ver</a>
+        <a href="${url}" download="${nombre}" class="btn-sm" style="text-decoration:none;padding:5px 11px;font-size:11px;background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);border-radius:7px;">⬇️ Descargar</a>
+        <label class="btn-sm" style="padding:5px 11px;font-size:11px;cursor:pointer;background:rgba(255,255,255,.07);color:var(--muted);border:1px solid var(--line);border-radius:7px;margin:0;">↻ Reemplazar<input type="file" accept="image/*,application/pdf,.xml" style="display:none;" onchange="subirGate('${id}','${g}',this)"></label>
+      </div>
+    </div>`;
   };
   let capturaHtml =
       (campos.length ? `<div class="frow">${campos.map(campoRow).join('')}${faltanCampos.length?`<button class="btn-sm" style="align-self:flex-end;" onclick="guardarCampos('${id}',${JSON.stringify(faltanCampos).replace(/"/g,'&quot;')})">Guardar</button>`:''}</div>` : '')
