@@ -203,6 +203,16 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
           <option value="ok">✅ Archivos completos</option>
         </select>
         <input type="text" id="f-buscar" placeholder="🔎 Buscar por económico, OT, COT o nombre de pieza (para garantías)..." oninput="render()">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+          <input type="number" step="0.01" min="0" id="f-importe" placeholder="💵 Buscar factura por importe (ej. 1250.40)" style="flex:1;min-width:230px;margin:0;" oninput="buscarPorImporte()">
+          <select id="f-tol" onchange="buscarPorImporte()" style="max-width:150px;margin:0;">
+            <option value="0">Importe exacto</option>
+            <option value="1">± $1</option>
+            <option value="10" selected>± $10</option>
+            <option value="100">± $100</option>
+          </select>
+        </div>
+        <div id="res-importe"></div>
         <button onclick="exportarExcel()" style="margin-bottom:0;background:linear-gradient(135deg,#f0870a,#f5b800);color:#2a1c00;border:none;border-radius:10px;font-weight:800;cursor:pointer;padding:9px 16px;">📊 Exportar Excel</button>
       </div>
       <div id="sel-resumen" class="selbar"></div>
@@ -224,7 +234,7 @@ const SUPABASE_KEY='sb_publishable_ErvGJRqEMKRC9FdJuZ9mig_Bb7vOFxT';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Compras trabaja las refacciones desde el paso 5 (Compras) en adelante:
-// captura el costo final y sube la factura (PDF+XML) de cada refacción.
+// captura el costo final y sube la factura de cada refacción.
 const DESDE='Compra de Refacciones y Reparación';
 // Ve todas las órdenes desde Compras hasta el cierre (para subir facturas en cualquier paso)
 const VISIBLES=['Compra de Refacciones y Reparación','Reparado','Pendiente de OT','Auto Entregado','Pendiente de Factura','Contabilidad Emitió Factura','Se Envía Factura a Telmex','Factura Pagada'];
@@ -232,7 +242,7 @@ const FLUJO=VISIBLES;
 const NUM={'Compra de Refacciones y Reparación':4,'Reparado':5,'Pendiente de OT':6,'Auto Entregado':7,'Pendiente de Factura':8,'Contabilidad Emitió Factura':9,'Se Envía Factura a Telmex':10,'Factura Pagada':11};
 const CORTO={'Compra de Refacciones y Reparación':'Compras','Reparado':'Reparación','Pendiente de OT':'Pendiente de OT','Auto Entregado':'Entregar auto','Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada a TMX','Factura Pagada':'Factura pagada'};
 const COLOR={'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899','Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37'};
-const GNOM={factura_refaccion_pdf:'factura de la refacción (PDF)',factura_refaccion_xml:'factura de la refacción (XML)'};
+const GNOM={factura_refaccion_pdf:'factura de la refacción'};
 const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const norm=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 
@@ -336,15 +346,14 @@ function limpiarFiltros(){
   render();
 }
 
-// Estado de archivos de una orden: 'ok' si todas sus refacciones tienen PDF y XML
+// Estado de archivos de una orden: 'ok' si todas sus refacciones tienen su factura
 function estadoCarga(sid){
   const rs=refsDe(sid);
   if(!rs.length) return 'ok';
   const falta=rs.some(r=>{
     if(r.requiere_factura===false) return false;
     const pdf=evisDe(sid).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
-    const xml=evisDe(sid).some(e=>e.tipo==='factura_refaccion_xml_'+r.id);
-    return !pdf||!xml;
+    return !pdf;
   });
   return falta?'pend':'ok';
 }
@@ -380,8 +389,7 @@ function render(){
       totReal += ((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1);
       if(!r.es_adicional && r.costo_final==null) sinCosto++;
       const pdf=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
-      const xml=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_xml_'+r.id);
-      if(!pdf||!xml){ sinFact++; refsAFacturar++; }
+      if(!pdf){ sinFact++; refsAFacturar++; }
     });
     if(sinCosto>0) faltaCostoN++;
     if(sinFact>0) faltaFactN++;
@@ -435,8 +443,7 @@ function render(){
       cot += (r.costo||0)*(r.cantidad||1);
       real += ((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1);
       const pdf=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
-      const xml=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_xml_'+r.id);
-      if(!pdf||!xml) sinFact++;
+      if(!pdf) sinFact++;
     });
     const factTxt = rs.length===0 ? '<span class="sub">sin refacciones</span>'
       : (sinFact===0 ? '<b style="color:#22d39a;">✓ completas</b>'
@@ -491,10 +498,10 @@ function abrir(id){
   const CHIP_OK='<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>';
 
   const filaRef=(r)=>{
-    const pdfKey='factura_refaccion_pdf_'+r.id, xmlKey='factura_refaccion_xml_'+r.id;
-    const evPDF=evisDe(id).find(e=>e.tipo===pdfKey), evXML=evisDe(id).find(e=>e.tipo===xmlKey);
-    const tienePDF=!!evPDF, tieneXML=!!evXML;
-    const urlPDF=evPDF?evPDF.url:'', urlXML=evXML?evXML.url:'';
+    const pdfKey='factura_refaccion_pdf_'+r.id;
+    const evPDF=evisDe(id).find(e=>e.tipo===pdfKey);
+    const tienePDF=!!evPDF;
+    const urlPDF=evPDF?evPDF.url:'';
     const guardado = r.costo_final!=null;
     const cf = guardado ? r.costo_final : '';
     const okStyle='border-color:rgba(34,211,154,.5);background:rgba(34,211,154,.10);color:#3fe0ad;font-weight:800;';
@@ -516,10 +523,10 @@ function abrir(id){
         <span id="chip-${r.id}" style="display:${guardado?'inline-flex':'none'};align-items:center;gap:5px;background:rgba(34,211,154,.15);border:1px solid rgba(34,211,154,.45);color:#3fe0ad;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;">✓ Guardado</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;">
-        <div style="font-size:10.5px;color:${r.a_cambio?'#7ee8f2':((tienePDF&&tieneXML)?'#3fe0ad':'var(--muted)')};font-weight:700;">
+        <div style="font-size:10.5px;color:${r.a_cambio?'#7ee8f2':(tienePDF?'#3fe0ad':'var(--muted)')};font-weight:700;">
           ${r.a_cambio
             ? '\uD83D\uDD04 El proveedor repone esta pieza. No se paga: solo sube abajo el documento del cambio.'
-            : ((tienePDF&&tieneXML)?'\u2713 Factura y XML cargados m\u00e1s abajo, en su proveedor':'\uD83E\uDDFE Su factura se sube abajo, agrupada por proveedor')}
+            : (tienePDF?'\u2713 Factura cargada m\u00e1s abajo, en su proveedor':'\uD83E\uDDFE Su factura se sube abajo, agrupada por proveedor')}
         </div>
         <button class="btn-sm" id="ac-${r.id}" style="font-size:10.5px;padding:5px 11px;background:${r.a_cambio?'rgba(255,255,255,.07)':'rgba(0,208,230,.14)'};border:1px solid ${r.a_cambio?'var(--line2)':'rgba(0,208,230,.45)'};color:${r.a_cambio?'var(--muted)':'#7ee8f2'};font-weight:800;" onclick="marcarACambio('${r.id}',${r.a_cambio?'false':'true'})">${r.a_cambio?'Quitar “a cambio”':'🔄 Cambio de pieza con el proveedor'}</button>
       </div>
@@ -556,8 +563,7 @@ function abrir(id){
     const buscar=(t)=>{ const e=evsOrden.find(x=>x.tipo==='factura_refaccion_'+t+'_'+ids[0]); return e?e.url:''; };
     const todas=(t)=>ids.every(i=>evsOrden.some(x=>x.tipo==='factura_refaccion_'+t+'_'+i));
     const urlP=todas('pdf')?buscar('pdf'):'';
-    const urlX=todas('xml')?buscar('xml'):'';
-    const listo=!!urlP&&!!urlX;
+    const listo=!!urlP;
     return `<div style="border:1px solid ${listo?'rgba(34,211,154,.45)':'var(--line)'};background:${listo?'rgba(34,211,154,.06)':'#12142b'};border-radius:11px;padding:12px 14px;margin-bottom:9px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:800;font-size:14px;color:var(--ink);">\uD83C\uDFEA ${g.prov}</div>
@@ -566,7 +572,6 @@ function abrir(id){
       <div style="font-size:11.5px;color:var(--muted);margin-top:3px;">${piezas}</div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
         ${bloqueFactProv(id, ids, g.prov, 'pdf', 'factura', urlP)}
-        ${bloqueFactProv(id, ids, g.prov, 'xml', 'XML / comprobante', urlX)}
       </div>
     </div>`;
   }).join('');
@@ -579,8 +584,7 @@ function abrir(id){
   const faltaCosto=misRefs.filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   const faltaFact=misRefs.filter(r=>{
     const pdf=evisDe(id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
-    const xml=evisDe(id).some(e=>e.tipo==='factura_refaccion_xml_'+r.id);
-    return !pdf||!xml;
+    return !pdf;
   }).length;
   const alerta = (faltaCosto||faltaFact)
     ? `<div class="gate" style="background:rgba(245,184,0,.1);border-color:rgba(245,184,0,.35);color:#ffd75e;">
@@ -604,7 +608,7 @@ function abrir(id){
   // Todos los archivos guardados de esta orden, juntos para consulta rápida (garantías)
   const archivos=[];
   misRefs.forEach(r=>{
-    [['pdf','Factura'],['xml','XML / comprobante']].forEach(([t,et])=>{
+    [['pdf','Factura']].forEach(([t,et])=>{
       const ev=evisDe(id).find(e=>e.tipo==='factura_refaccion_'+t+'_'+r.id);
       if(ev) archivos.push({pieza:r.descripcion||'Pieza', etiqueta:et, url:ev.url, prov:r.proveedor||'', costo:(r.costo_final!=null?r.costo_final:r.costo)});
     });
@@ -689,6 +693,62 @@ function reactivar(btnId){
   b.style.background='linear-gradient(135deg,#22d39a,#12a878)'; b.style.color='#04120c';
 }
 // Pieza que el proveedor repone sin cobrar: costo en 0 y solo se pide la evidencia del cambio.
+// ===== Buscar una factura por su importe =====
+// Como una misma factura puede cubrir varias piezas del mismo proveedor, se busca
+// tanto por el importe de cada pieza como por la suma del grupo de ese proveedor.
+function buscarPorImporte(){
+  const cont=document.getElementById('res-importe');
+  const v=parseFloat(document.getElementById('f-importe').value);
+  const tol=parseFloat(document.getElementById('f-tol').value)||0;
+  if(isNaN(v) || v<=0){ cont.innerHTML=''; return; }
+  const cerca=(a,b)=> Math.abs(a-b) <= (tol||0.009);
+  const hallazgos=[];
+  servicios.forEach(s=>{
+    const piezas=refs.filter(r=>r.servicio_id===s.id);
+    if(!piezas.length) return;
+    // 1) coincidencia con una pieza suelta
+    piezas.forEach(r=>{
+      const monto=(r.cantidad||0)*Number(r.costo_final!=null?r.costo_final:r.costo||0);
+      if(monto>0 && cerca(monto,v)){
+        const ev=evisDe(s.id).find(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
+        hallazgos.push({s, prov:r.proveedor||'—', monto, detalle:r.descripcion||'Pieza', piezas:1, url:ev?ev.url:''});
+      }
+    });
+    // 2) coincidencia con el total de un proveedor (una factura, varias piezas)
+    const porProv={};
+    piezas.forEach(r=>{ const k=(r.proveedor||'').trim().toLowerCase(); (porProv[k]=porProv[k]||[]).push(r); });
+    Object.values(porProv).forEach(g=>{
+      if(g.length<2) return;
+      const suma=g.reduce((a,r)=>a+(r.cantidad||0)*Number(r.costo_final!=null?r.costo_final:r.costo||0),0);
+      if(suma>0 && cerca(suma,v)){
+        const ev=evisDe(s.id).find(e=>e.tipo==='factura_refaccion_pdf_'+g[0].id);
+        hallazgos.push({s, prov:g[0].proveedor||'—', monto:suma,
+          detalle:g.map(r=>r.descripcion).filter(Boolean).join(', '), piezas:g.length, url:ev?ev.url:''});
+      }
+    });
+  });
+  if(!hallazgos.length){
+    cont.innerHTML=`<div style="margin-top:10px;font-size:12px;color:var(--muted);">Ninguna factura con ese importe${tol?' (± $'+tol+')':''}. Prueba ampliando el margen.</div>`;
+    return;
+  }
+  hallazgos.sort((a,b)=>Math.abs(a.monto-v)-Math.abs(b.monto-v));
+  cont.innerHTML=`<div style="margin-top:11px;">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:7px;">${hallazgos.length} coincidencia${hallazgos.length===1?'':'s'}</div>
+    ${hallazgos.slice(0,12).map(h=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);background:#12142b;border-radius:10px;padding:10px 13px;margin-bottom:6px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:13px;font-weight:800;">🏪 ${h.prov} <span style="color:var(--cyan);">${fmt(h.monto)}</span></div>
+          <div style="font-size:11.5px;color:var(--muted);">${h.s.economico||'—'} · ${h.s.cot||'—'} · ${h.s.plaza||''} — ${h.detalle}${h.piezas>1?' <b>('+h.piezas+' piezas en una factura)</b>':''}</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          ${h.url?`<a href="${h.url}" target="_blank" rel="noopener" class="btn-sm" style="text-decoration:none;padding:5px 11px;font-size:11px;">👁️ Ver factura</a>`
+                 :`<span style="font-size:11px;color:#ffd75e;">sin factura cargada</span>`}
+          <button class="btn-sm" style="padding:5px 11px;font-size:11px;" onclick="abrir('${h.s.id}')">Abrir orden</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
 async function marcarACambio(refId, valor){
   const r=refs.find(x=>x.id===refId); if(!r) return;
   const msg = valor
@@ -766,9 +826,9 @@ async function subirFactGrupo(servId, idsCsv, slug, tipo, input){
     }
     const r0=refs.find(x=>x.id===ids[0]);
     const prov=(r0&&r0.proveedor)||'proveedor';
-    registrarHistorial(servId, 'Compras subio '+(tipo==='pdf'?'la factura':'el XML')+' de '+prov+' ('+ids.length+' pieza(s))');
+    registrarHistorial(servId, 'Compras subio la factura de '+prov+' ('+ids.length+' pieza(s))');
     // Se repinta solo esta casilla: el panel no se mueve
-    cont.outerHTML = bloqueFactProv(servId, ids, prov, tipo, tipo==='pdf'?'factura':'XML / comprobante', url);
+    cont.outerHTML = bloqueFactProv(servId, ids, prov, tipo, 'factura', url);
   }catch(e){ alert('Error al subir: '+(e.message||e)); cont.innerHTML=original; }
 }
 
@@ -802,8 +862,7 @@ function exportarExcel(){
       cot+=(r.costo||0)*(r.cantidad||1);
       real+=((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1);
       const pdf=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
-      const xml=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_xml_'+r.id);
-      if(!pdf||!xml) sinFact++;
+      if(!pdf) sinFact++;
     });
     tCot+=cot; tReal+=real;
     const c=[s.economico,s.ot,s.cot,s.plaza,NUM[s.estatus]+'. '+s.estatus,rs.length,cot.toFixed(2),real.toFixed(2),(real-cot).toFixed(2),sinFact];

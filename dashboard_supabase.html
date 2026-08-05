@@ -413,8 +413,13 @@ const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,ma
 const norm=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 
 let profile=null, servicios=[], refs=[], evis=[], hist=[], diags=[], proveedores=[], activeId=null;
+// Roles de solo lectura: ven todo el panel (dinero, filtros, reportes) pero no editan nada.
+// 'direccion' es para los dueños; 'conta_lectura' es el espejo para contabilidad.
+const soloLectura=()=>profile&&(profile.rol==='direccion'||profile.rol==='conta_lectura');
 const esAdmin=()=>profile&&(profile.rol==='admin'||profile.rol==='gerente');
-const puedeEditar=()=>profile&&(esAdmin()||profile.rol==='super');
+// Ve todo el panel como un admin, pero sin poder tocar
+const veTodo=()=>esAdmin()||soloLectura();
+const puedeEditar=()=>profile&&!soloLectura()&&(esAdmin()||profile.rol==='super');
 // Contabilidad: pasos 10, 11 y 13. El 12 (enviar factura a Telmex) es del generalista.
 const PASOS_CONTA=['Contabilidad Emitió Factura','Factura Pagada'];  // solo estos los activa Contabilidad (10 y 12)
 const puedeAvanzarA=(destino)=>{
@@ -425,7 +430,7 @@ const puedeAvanzarA=(destino)=>{
 };
 // ...pero NADIE avanza sin la evidencia del paso (ni el admin)
 // El supervisor no ve montos de dinero; solo lo necesario para operar.
-const veDinero=()=>profile&&(esAdmin()||profile.rol==='contabilidad');
+const veDinero=()=>profile&&(esAdmin()||soloLectura()||profile.rol==='contabilidad');
 
 async function login(){
   const email=document.getElementById('l-email').value.trim(), pass=document.getElementById('l-pass').value;
@@ -446,7 +451,14 @@ async function iniciar(user){
   }
   profile={ id:prof.id, nombre:prof.nombre||user.email, rol:prof.rol, plaza_id:prof.plaza_id, plaza:prof.tm_plazas?prof.tm_plazas.nombre:'' };
   document.getElementById('who-name').textContent=profile.nombre;
-  document.getElementById('who-rol').textContent=profile.rol.toUpperCase()+(profile.plaza?(' · '+profile.plaza):'');
+  const NOM_ROL={direccion:'DIRECCIÓN · SOLO CONSULTA', conta_lectura:'CONTABILIDAD · SOLO CONSULTA'};
+  document.getElementById('who-rol').textContent=(NOM_ROL[profile.rol]||profile.rol.toUpperCase())+(profile.plaza?(' · '+profile.plaza):'');
+  if(soloLectura()){
+    const b=document.createElement('div');
+    b.style.cssText='background:rgba(0,208,230,.1);border:1px solid rgba(0,208,230,.35);color:#7ee8f2;border-radius:9px;padding:8px 12px;margin:10px 14px 0;font-size:11px;font-weight:700;text-align:center;line-height:1.4;';
+    b.innerHTML='👁️ Sesión de consulta<div style="font-weight:600;color:var(--muted);margin-top:2px;">Puedes ver y exportar todo. No se modifica nada.</div>';
+    document.querySelector('#sb-side .brand').insertAdjacentElement('afterend', b);
+  }
   document.getElementById('login').classList.add('hide');
   document.getElementById('sb-side').classList.remove('hide');
   document.getElementById('sb-main').classList.remove('hide');
@@ -461,7 +473,7 @@ async function iniciar(user){
     const o2=document.createElement('option'); o2.value=p; o2.textContent=txt; re.appendChild(o2);
   });
   // Reportes: solo admin y gerencia
-  if(esAdmin()) document.getElementById('nav-rep').classList.remove('hide');
+  if(veTodo()) document.getElementById('nav-rep').classList.remove('hide');
   await cargarConfig(); await cargarPlazas(); await cargarIngenieros(); await cargarTodo(); suscribir();
 }
 async function cargarPlazas(){
@@ -472,7 +484,7 @@ async function cargarPlazas(){
   document.getElementById('p-plaza').disabled=false;
   document.getElementById('r-plaza').innerHTML='<option value="Todos">📍 Todas las Plazas</option>';
   document.getElementById('r-plaza').disabled=false;
-  if(esAdmin()||profile.rol==='contabilidad'){
+  if(veTodo()||profile.rol==='contabilidad'){
     const { data }=await sb.from('tm_plazas').select('nombre').order('nombre');
     (data||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.nombre; o.textContent='📍 '+p.nombre; sel.appendChild(o); });
     document.getElementById('hdr-plaza').textContent='Todas las plazas';
@@ -492,7 +504,7 @@ async function cargarPlazas(){
 }
 
 function vista(v){
-  if(v==='reportes' && !esAdmin()) return;
+  if(v==='reportes' && !veTodo()) return;
   const titulos={ordenes:'Dashboard General',proveedores:'Catálogo de Proveedores',reportes:'Reportes'};
   document.getElementById('v-ordenes').classList.toggle('hide',v!=='ordenes');
   document.getElementById('v-prov').classList.toggle('hide',v!=='proveedores');
@@ -1933,7 +1945,7 @@ function ordenesReporte(){
 }
 const _n0=v=>v?v:'';
 function renderReportes(){
-  if(!esAdmin()) return;
+  if(!veTodo()) return;
   const ord=ordenesReporte();
   const {desde,hasta}=rangoReporte();
   const per = (desde||hasta)
