@@ -259,12 +259,19 @@ async function login(){
 async function iniciar(user){
   const { data:prof }=await sb.from('tm_profiles').select('id,nombre,rol').eq('id',user.id).single();
   if(!prof){ document.getElementById('l-msg').textContent='Usuario sin perfil.'; await sb.auth.signOut(); return; }
-  if(prof.rol!=='compras' && prof.rol!=='admin' && prof.rol!=='gerente'){
+  if(!['compras','admin','gerente','conta_lectura'].includes(prof.rol)){
     document.getElementById('l-msg').textContent='Este panel es solo para Compras.'; await sb.auth.signOut(); return;
   }
   profile={ id:prof.id, nombre:prof.nombre||user.email, rol:prof.rol };
   document.getElementById('who-name').textContent=profile.nombre;
-  document.getElementById('who-rol').textContent=profile.rol.toUpperCase()+' · Todas las plazas';
+  document.getElementById('who-rol').textContent =
+    (profile.rol==='conta_lectura' ? 'CONTABILIDAD · SOLO CONSULTA' : profile.rol.toUpperCase()) + ' · Todas las plazas';
+  if(profile.rol==='conta_lectura'){
+    const b=document.createElement('div');
+    b.style.cssText='background:rgba(0,208,230,.1);border:1px solid rgba(0,208,230,.35);color:#7ee8f2;border-radius:9px;padding:8px 12px;margin:10px 0 0;font-size:11px;font-weight:700;text-align:center;line-height:1.4;';
+    b.innerHTML='\uD83D\uDC41\uFE0F Sesión de consulta<div style="font-weight:600;color:var(--muted);margin-top:2px;">Puedes ver y exportar todo. No se modifica nada.</div>';
+    document.querySelector('.who').insertAdjacentElement('afterend', b);
+  }
   document.getElementById('login').classList.add('hide');
   document.getElementById('sb-side').classList.remove('hide');
   document.getElementById('sb-main').classList.remove('hide');
@@ -352,8 +359,10 @@ function estadoCarga(sid){
   if(!rs.length) return 'ok';
   const falta=rs.some(r=>{
     if(r.requiere_factura===false) return false;
-    const pdf=evisDe(sid).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
-    return !pdf;
+    if(r.a_cambio) return false;              // el proveedor la repone: no hay factura que subir
+    const pdf =evisDe(sid).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
+    const pago=evisDe(sid).some(e=>e.tipo==='factura_refaccion_pago_'+r.id);
+    return !pdf || !pago;
   });
   return falta?'pend':'ok';
 }
@@ -388,7 +397,8 @@ function render(){
       totCot += (r.costo||0)*(r.cantidad||1);
       totReal += ((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1);
       if(!r.es_adicional && r.costo_final==null) sinCosto++;
-      const pdf=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
+      const pdf=r.a_cambio || (evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id)
+                            && evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pago_'+r.id));
       if(!pdf){ sinFact++; refsAFacturar++; }
     });
     if(sinCosto>0) faltaCostoN++;
@@ -442,7 +452,8 @@ function render(){
     rs.forEach(r=>{
       cot += (r.costo||0)*(r.cantidad||1);
       real += ((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1);
-      const pdf=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
+      const pdf=r.a_cambio || (evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id)
+                            && evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pago_'+r.id));
       if(!pdf) sinFact++;
     });
     const factTxt = rs.length===0 ? '<span class="sub">sin refacciones</span>'
@@ -459,7 +470,7 @@ function render(){
   });
 }
 
-// Casilla de archivo de factura, agrupada por proveedor.
+// Casilla de archivo (factura o comprobante de pago), agrupada por proveedor.
 // Un mismo archivo cubre todas las piezas compradas al mismo proveedor.
 function slugProv(prov){
   return (String(prov||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -513,7 +524,7 @@ function abrir(id){
       <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:130px;">
           <label style="font-size:10px;">Costo final (real)</label>
-          <input type="number" step="0.01" id="cf-${r.id}" value="${r.a_cambio?0:cf}" ${r.a_cambio?'readonly':''} placeholder="$ real de la pieza" style="margin:0;${r.a_cambio?'opacity:.6;cursor:not-allowed;':''}" oninput="reactivar('gc-${r.id}')">
+          <input type="number" step="0.01" id="cf-${r.id}" value="${r.a_cambio?0:cf}" ${(r.a_cambio||consulta)?'readonly':''} placeholder="$ real de la pieza" style="margin:0;${r.a_cambio?'opacity:.6;cursor:not-allowed;':''}" oninput="reactivar('gc-${r.id}')">
         </div>
         <div style="flex:1.2;min-width:150px;">
           <label style="font-size:10px;">🏪 Proveedor <span style="color:var(--muted);font-weight:600;">(a quién se le paga)</span></label>
@@ -525,7 +536,7 @@ function abrir(id){
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;">
         <div style="font-size:10.5px;color:${r.a_cambio?'#7ee8f2':(tienePDF?'#3fe0ad':'var(--muted)')};font-weight:700;">
           ${r.a_cambio
-            ? '\uD83D\uDD04 El proveedor repone esta pieza. No se paga: solo sube abajo el documento del cambio.'
+            ? '\uD83D\uDD04 El proveedor repone esta pieza sin costo. No se paga ni se sube factura.'
             : (tienePDF?'\u2713 Factura cargada m\u00e1s abajo, en su proveedor':'\uD83E\uDDFE Su factura se sube abajo, agrupada por proveedor')}
         </div>
         <button class="btn-sm" id="ac-${r.id}" style="font-size:10.5px;padding:5px 11px;background:${r.a_cambio?'rgba(255,255,255,.07)':'rgba(0,208,230,.14)'};border:1px solid ${r.a_cambio?'var(--line2)':'rgba(0,208,230,.45)'};color:${r.a_cambio?'var(--muted)':'#7ee8f2'};font-weight:800;" onclick="marcarACambio('${r.id}',${r.a_cambio?'false':'true'})">${r.a_cambio?'Quitar “a cambio”':'🔄 Cambio de pieza con el proveedor'}</button>
@@ -541,7 +552,8 @@ function abrir(id){
 
   // --- Facturas agrupadas por proveedor -----------------------------------
   // Si varias piezas se compraron al mismo proveedor, basta un archivo para todas.
-  const refsFact = misRefs.filter(r=>r.requiere_factura!==false);
+  // Las piezas que el proveedor repone sin costo no llevan factura ni documento
+  const refsFact = misRefs.filter(r=>r.requiere_factura!==false && !r.a_cambio);
   const hayACambio = misRefs.some(r=>r.a_cambio);
   const grupos = new Map();
   refsFact.forEach(r=>{
@@ -563,7 +575,8 @@ function abrir(id){
     const buscar=(t)=>{ const e=evsOrden.find(x=>x.tipo==='factura_refaccion_'+t+'_'+ids[0]); return e?e.url:''; };
     const todas=(t)=>ids.every(i=>evsOrden.some(x=>x.tipo==='factura_refaccion_'+t+'_'+i));
     const urlP=todas('pdf')?buscar('pdf'):'';
-    const listo=!!urlP;
+    const urlG=todas('pago')?buscar('pago'):'';
+    const listo=!!urlP && !!urlG;
     return `<div style="border:1px solid ${listo?'rgba(34,211,154,.45)':'var(--line)'};background:${listo?'rgba(34,211,154,.06)':'#12142b'};border-radius:11px;padding:12px 14px;margin-bottom:9px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:800;font-size:14px;color:var(--ink);">\uD83C\uDFEA ${g.prov}</div>
@@ -572,24 +585,29 @@ function abrir(id){
       <div style="font-size:11.5px;color:var(--muted);margin-top:3px;">${piezas}</div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
         ${bloqueFactProv(id, ids, g.prov, 'pdf', 'factura', urlP)}
+        ${bloqueFactProv(id, ids, g.prov, 'pago', 'comprobante de pago', urlG)}
       </div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:7px;">El comprobante es el ticket o la transferencia con que se pagó esa factura.</div>
     </div>`;
   }).join('');
   const facturasHtml = refsFact.length
     ? `<div class="sect-h">\uD83E\uDDFE Facturas por proveedor</div>
-       <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Un solo archivo cubre todas las piezas del mismo proveedor. Si hay proveedores distintos, sube el archivo de cada uno.${hayACambio?' <b style="color:#7ee8f2;">En las piezas marcadas “a cambio” no hay factura que pagar: sube el documento que ampara el cambio.</b>':''}</div>
+       <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Por cada proveedor se suben dos archivos: la factura y el comprobante de pago. Un archivo cubre todas las piezas de ese proveedor.${hayACambio?' <b style="color:#7ee8f2;">Las piezas marcadas “a cambio” no aparecen aquí: no llevan factura.</b>':''}</div>
        ${cardsProv}`
     : '';
 
+  const consulta = soloConsulta();
   const faltaCosto=misRefs.filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   const faltaFact=misRefs.filter(r=>{
-    const pdf=evisDe(id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
-    return !pdf;
+    if(r.a_cambio) return false;             // el proveedor la repone: no lleva factura
+    const pdf =evisDe(id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
+    const pago=evisDe(id).some(e=>e.tipo==='factura_refaccion_pago_'+r.id);
+    return !pdf || !pago;
   }).length;
   const alerta = (faltaCosto||faltaFact)
     ? `<div class="gate" style="background:rgba(245,184,0,.1);border-color:rgba(245,184,0,.35);color:#ffd75e;">
         ${faltaCosto?`Falta capturar el <b>costo final y el proveedor</b> de ${faltaCosto} refacción(es) — sin esto la orden no avanza a Reparación.<br>`:''}
-        ${faltaFact?`Faltan <b>archivos de factura</b> de ${faltaFact} refacción(es). Puedes subirlos después: la orden se queda aquí hasta completarlos.`:''}
+        ${faltaFact?`Faltan <b>factura o comprobante de pago</b> de ${faltaFact} refacción(es). Puedes subirlos después: la orden se queda aquí hasta completarlos.`:''}
       </div>`
     : `<div class="gate ok">✓ Todas las refacciones tienen costo final y sus archivos.</div>`;
 
@@ -599,7 +617,7 @@ function abrir(id){
   const botonAvance = enCompras
     ? `<div style="margin:16px 0;padding:14px;border-radius:12px;background:rgba(34,211,154,.06);border:1px solid rgba(34,211,154,.25);">
         <div style="font-size:11px;font-weight:900;color:#3fe0ad;letter-spacing:.5px;margin-bottom:8px;">AVANZAR EL FLUJO</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Cuando ya capturaste el costo real y el proveedor de todas las piezas, manda la orden a Reparación. Los archivos de factura los puedes subir después.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Cuando ya capturaste el costo real y el proveedor de todas las piezas, manda la orden a Reparación. La factura y el comprobante de pago los puedes subir después.</div>
         <button class="btn-adv" id="btn-avanzar" ${puedeAvanzar?'':'disabled'} onclick="avanzarAReparacion('${id}')">Avanzar a REPARACIÓN →</button>
         <div id="aviso-falta" style="display:${puedeAvanzar?'none':''};font-size:11px;color:#ffd75e;margin-top:8px;">Captura primero el costo final y el proveedor de todas las piezas.</div>
       </div>`
@@ -749,10 +767,17 @@ function buscarPorImporte(){
   </div>`;
 }
 
+// La sesión de consulta ve y exporta, pero no modifica nada.
+const soloConsulta = () => profile && profile.rol==='conta_lectura';
+function bloqueoConsulta(){
+  if(soloConsulta()){ alert('Tu sesión es de consulta: puedes ver y exportar, pero no modificar la información.'); return true; }
+  return false;
+}
 async function marcarACambio(refId, valor){
+  if(bloqueoConsulta()) return;
   const r=refs.find(x=>x.id===refId); if(!r) return;
   const msg = valor
-    ? 'Marcar “'+(r.descripcion||'la pieza')+'” como CAMBIO CON EL PROVEEDOR.\n\nEl costo queda en $0 y no se paga. Solo hay que subir el documento del cambio.\n\n¿Continuar?'
+    ? 'Marcar “'+(r.descripcion||'la pieza')+'” como CAMBIO CON EL PROVEEDOR.\n\nEl costo queda en $0 y no se paga. No hace falta subir factura de esta pieza.\n\n¿Continuar?'
     : 'Quitar la marca de “a cambio”. La pieza vuelve a capturarse con su costo real.\n\n¿Continuar?';
   if(!confirm(msg)) return;
   const b=document.getElementById('ac-'+refId); if(b){ b.disabled=true; b.textContent='Guardando...'; }
@@ -763,6 +788,7 @@ async function marcarACambio(refId, valor){
   await cargarTodo(); if(activeId) abrir(activeId);
 }
 async function guardarCostoFinal(refId){
+  if(bloqueoConsulta()) return;
   const inp=document.getElementById('cf-'+refId);
   const v=inp?inp.value.trim():'';
   if(v===''){ alert('Escribe el costo final de la refacción.'); return; }
@@ -802,6 +828,7 @@ function actualizarResumen(){
   if(aviso) aviso.style.display = falta>0 ? '' : 'none';
 }
 async function subirFactGrupo(servId, idsCsv, slug, tipo, input){
+  if(bloqueoConsulta()) return;
   const f=input.files&&input.files[0]; if(!f) return;
   const ids=String(idsCsv).split(',').filter(Boolean);
   if(!ids.length) return;
@@ -833,10 +860,11 @@ async function subirFactGrupo(servId, idsCsv, slug, tipo, input){
 }
 
 async function avanzarAReparacion(id){
+  if(bloqueoConsulta()) return;
   const s=servicios.find(x=>x.id===id); if(!s) return;
   const pendientes=refsDe(id).filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   if(pendientes){ alert('Falta capturar el costo final de '+pendientes+' refacción(es).'); return; }
-  if(!confirm('¿Mandar la orden '+(s.economico||'')+' a REPARACIÓN?\n\nLos archivos de factura los puedes subir después: la orden seguirá apareciendo en tu panel hasta que estén completos.')) return;
+  if(!confirm('¿Mandar la orden '+(s.economico||'')+' a REPARACIÓN?\n\nLa factura y el comprobante de pago los puedes subir después: la orden seguirá apareciendo en tu panel hasta que estén completos.')) return;
   const { error }=await sb.from('tm_servicios').update({estatus:'Reparado'}).eq('id',id);
   if(error){ alert('No se pudo avanzar: '+error.message); return; }
   await registrarHistorial(id, 'Compras avanzó la orden a Reparación');
@@ -861,7 +889,8 @@ function exportarExcel(){
     rs.forEach(r=>{
       cot+=(r.costo||0)*(r.cantidad||1);
       real+=((r.costo_final!=null?r.costo_final:r.costo)||0)*(r.cantidad||1);
-      const pdf=evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id);
+      const pdf=r.a_cambio || (evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pdf_'+r.id)
+                            && evisDe(s.id).some(e=>e.tipo==='factura_refaccion_pago_'+r.id));
       if(!pdf) sinFact++;
     });
     tCot+=cot; tReal+=real;

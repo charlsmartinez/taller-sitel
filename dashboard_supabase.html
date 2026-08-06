@@ -965,10 +965,10 @@ function abrir(id){
       ${(editable && s.garantia_tipo==='refaccion' && !s.garantia_subtipo && s.estatus==='Cotización')?`
       <div style="margin-top:12px;border-top:1px solid ${MOR}.3);padding-top:12px;">
         <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#c9adff;font-weight:800;margin-bottom:6px;">¿Cómo se resuelve la refacción?</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Las dos pasan por Compras. La diferencia es si hay que pagar la pieza o el proveedor la repone.</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Si el proveedor repone la pieza sin cobrar, la orden pasa directo a Reparación. Si hay que comprarla, pasa por Compras.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn-sm" style="flex:1;min-width:180px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaSubtipo('${id}','cambio_proveedor')">🔄 Cambio con el proveedor<div style="font-weight:600;font-size:10.5px;opacity:.8;">El proveedor la repone · sin costo</div></button>
-          <button class="btn-sm" style="flex:1;min-width:180px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaSubtipo('${id}','reemplazo_costo')">💵 Reemplazo con costo<div style="font-weight:600;font-size:10.5px;opacity:.8;">Se compra la pieza de nuevo</div></button>
+          <button class="btn-sm" style="flex:1;min-width:180px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaSubtipo('${id}','cambio_proveedor')">🔄 Cambio con el proveedor<div style="font-weight:600;font-size:10.5px;opacity:.8;">Sin costo · va directo a Reparación</div></button>
+          <button class="btn-sm" style="flex:1;min-width:180px;background:${MOR}.2);border:1px solid ${MOR}.5);color:#dcd0ff;font-weight:800;" onclick="setGarantiaSubtipo('${id}','reemplazo_costo')">💵 Reemplazo con costo<div style="font-weight:600;font-size:10.5px;opacity:.8;">Se compra de nuevo · pasa por Compras</div></button>
         </div>
       </div>`:''}
 
@@ -978,11 +978,11 @@ function abrir(id){
         <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">El formato de cotización ya va dirigido a <b>COMPRAS</b>. Al continuar, la orden pasa a su paso.</div>
         <div style="font-size:11.5px;font-weight:800;color:${s.garantia_subtipo==='cambio_proveedor'?'#7ee8f2':'#ffd75e'};margin-bottom:10px;">
           ${s.garantia_subtipo==='cambio_proveedor'
-            ? '🔄 Cambio con el proveedor · las piezas llegarán a Compras marcadas SIN COSTO; solo suben la evidencia del cambio.'
-            : '💵 Reemplazo con costo · Compras cotiza y compra normal.'}
+            ? '🔄 Cambio con el proveedor · sin costo. La orden pasa directo a Reparación, sin intervención de Compras.'
+            : '💵 Reemplazo con costo · pasa a Compras para que coticen y compren.'}
           <button class="btn-sm" style="margin-left:8px;padding:3px 9px;font-size:10.5px;" onclick="setGarantiaSubtipo('${id}',null)">Cambiar</button>
         </div>
-        <button class="btn-sm" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaARefaccion('${id}')">Pasar a Compras</button>
+        <button class="btn-sm" style="background:linear-gradient(135deg,#a97bff,#8b5cf6);border:0;color:#fff;font-weight:800;" onclick="garantiaARefaccion('${id}')">${s.garantia_subtipo==='cambio_proveedor'?'Pasar a Reparación':'Pasar a Compras'}</button>
       </div>`:''}
 
       ${(editable && s.estatus==='Reparado')?`
@@ -1677,7 +1677,7 @@ async function setGarantiaSubtipo(id, sub){
     await cargarTodo(); abrir(id); return;
   }
   const txt = sub==='cambio_proveedor'
-    ? 'CAMBIO CON EL PROVEEDOR\n\nLa orden pasa a Compras, pero las piezas van marcadas "a cambio": el costo queda en 0 y Compras solo sube la evidencia del cambio.\n\n¿Continuar?'
+    ? 'CAMBIO CON EL PROVEEDOR\n\nLas piezas quedan marcadas "a cambio" con costo en 0 y la orden pasa directo a Reparación, sin intervención de Compras.\n\n¿Continuar?'
     : 'REEMPLAZO CON COSTO\n\nLa orden pasa a Compras y ellos cotizan y compran la pieza de forma normal.\n\n¿Continuar?';
   if(!confirm(txt)) return;
   const {error}=await sb.from('tm_servicios').update({garantia_subtipo:sub}).eq('id',id);
@@ -1687,7 +1687,7 @@ async function setGarantiaSubtipo(id, sub){
     await sb.from('tm_refacciones').update({a_cambio:true, costo:0, costo_final:0}).eq('servicio_id',id);
   }
   await sb.from('tm_historial').insert({servicio_id:id,
-    estatus:'Garantía · '+(sub==='cambio_proveedor'?'cambio con el proveedor (sin costo)':'reemplazo con costo'),
+    estatus:'Garantía · '+(sub==='cambio_proveedor'?'cambio con el proveedor (sin costo, sin pasar por Compras)':'reemplazo con costo'),
     usuario:profile.nombre});
   await cargarTodo(); abrir(id);
 }
@@ -1756,8 +1756,14 @@ async function garantiaManoObra(id){
 // Garantía por refacción: enviar la cotización a Compras y saltar al paso de Compras
 async function garantiaARefaccion(id){
   const s=servicios.find(x=>x.id===id);
-  if(!confirm('La orden pasará al paso de COMPRAS.\n\nDe ahí sigue el flujo normal: cotizan, compran y avanzan a Reparación.\n\n¿Continuar?')) return;
-  const ok=await recorrerPasos(id,'Compra de Refacciones y Reparación','refacción');
+  // Si el proveedor repone la pieza sin cobrar, Compras no interviene: va directo a Reparación.
+  const directo = s.garantia_subtipo==='cambio_proveedor';
+  const destino = directo ? 'Reparado' : 'Compra de Refacciones y Reparación';
+  const msg = directo
+    ? 'El proveedor repone la pieza sin costo, así que Compras no interviene.\n\nLa orden pasa directo a Reparación para que el mecánico suba las evidencias.\n\n¿Continuar?'
+    : 'La orden pasará al paso de COMPRAS.\n\nDe ahí sigue el flujo normal: cotizan, compran y avanzan a Reparación.\n\n¿Continuar?';
+  if(!confirm(msg)) return;
+  const ok=await recorrerPasos(id,destino,'refacción'+(directo?' · cambio con el proveedor':''));
   await cargarTodo(); if(ok) abrir(id);
 }
 
