@@ -906,7 +906,7 @@ function abrir(id){
   const extras=Object.keys(evT).filter(k=>k.startsWith('extra_'));
   const piezas=Object.keys(evT).filter(k=>k.startsWith('pieza_'));
   // En el paso Reparado el super puede reemplazar las fotos que subió el mecánico
-  const puedeReemplazar = editable && (s.estatus==='Reparado');
+  const puedeReemplazar = editable && (s.estatus==='Reparado' || esAdmin());
   const REEMPLAZABLES = ['refacciones_usadas','refacciones_compradas','refacciones_montadas'].concat(ENTREGA.map(k=>'entrega_'+k));
   // Una casilla puede tener varias fotos: se guardan como tipo, tipo_2, tipo_3...
   // Esto devuelve todas las que existan de ese tipo, en orden.
@@ -921,8 +921,12 @@ function abrir(id){
     const vista = esFoto(u)
       ? `<img src="${u}" onclick="lb('${u}')" onerror="this.outerHTML='<div class=\'doc\' title=\'El archivo ya no está disponible\' style=\'opacity:.55;cursor:default;\'><span class=\'i\'>\u26A0\uFE0F</span><span class=\'e\'>NO DISPONIBLE</span></div>'">`
       : `<a class="doc" href="${u}" target="_blank" title="Abrir ${nom}"><span class="i">${iconoDe(u)}</span><span class="e">${ext.toUpperCase()}</span></a>`;
-    const rep = (puedeReemplazar && REEMPLAZABLES.includes(k) && !(i||0))
-      ? `<label class="rep-ev" title="Reemplazar esta foto">✎<input type="file" accept="image/*" style="display:none;" onchange="reemplazarEv('${id}','${k}',this)"></label>` : '';
+    // El admin puede reemplazar o quitar cualquier evidencia; los demás solo las del paso de Reparación
+    const puedeEsta = puedeReemplazar && (esAdmin() || (REEMPLAZABLES.includes(k) && !(i||0)));
+    const rep = puedeEsta
+      ? `<label class="rep-ev" title="Reemplazar esta foto">✎<input type="file" accept="image/*" style="display:none;" onchange="reemplazarEv('${id}','${k}',this)"></label>`
+        + (esAdmin()?`<span class="rep-ev" style="right:32px;color:#ff8f9a;" title="Quitar esta evidencia" onclick="event.stopPropagation();quitarEv('${id}','${k}')">🗑</span>`:'')
+      : '';
     return `<div class="gitem ${cls||''}">${vista}<a class="dl" href="${u}" download="${k}.${ext}" target="_blank" onclick="event.stopPropagation()" title="Descargar">⬇</a>${rep}<span class="tg">${nom}</span></div>`;
   };
   const grupo=(titulo,arr,cls)=>{ const g=arr.map(k=>gitem(k,cls)).filter(Boolean).join(''); return g?`<div class="sect-h">${titulo}</div><div class="gal">${g}</div>`:''; };
@@ -1284,6 +1288,19 @@ async function subirFoto(id,tipo,file){
   const ya=evis.find(e=>e.servicio_id===id&&e.tipo===tipo);
   if(ya) await sb.from('tm_evidencias').update({url:publicUrl}).eq('id',ya.id);
   else await sb.from('tm_evidencias').insert({servicio_id:id,tipo,url:publicUrl});
+}
+// Quitar una evidencia del expediente (solo admin y gerencia).
+// Se borra el registro; el archivo se elimina aparte desde Supabase si hace falta.
+async function quitarEv(id, tipo){
+  if(!esAdmin()){ alert('Solo admin y gerencia pueden quitar evidencias.'); return; }
+  const nom=GNOM[tipo]||tipo;
+  if(!confirm('¿Quitar "'+nom+'" del expediente de esta orden?\n\nDeja de verse en el panel y queda anotado en el historial.\n\n¿Continuar?')) return;
+  const ev=evisDe(id).find(e=>e.tipo===tipo);
+  if(!ev){ alert('No se encontró esa evidencia.'); return; }
+  const {error}=await sb.from('tm_evidencias').delete().eq('id',ev.id);
+  if(error){ alert('No se pudo quitar: '+error.message); return; }
+  await sb.from('tm_historial').insert({servicio_id:id,estatus:'Evidencia retirada: '+nom,usuario:profile.nombre});
+  await cargarTodo(); abrir(id);
 }
 async function reemplazarEv(id,tipo,input){
   const f=input.files&&input.files[0]; if(!f) return;

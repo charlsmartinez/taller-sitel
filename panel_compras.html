@@ -527,7 +527,7 @@ function abrir(id){
       <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:130px;">
           <label style="font-size:10px;">Costo final (real)</label>
-          <input type="number" step="0.01" id="cf-${r.id}" value="${r.a_cambio?0:cf}" ${(r.a_cambio||consulta)?'readonly':''} placeholder="$ real de la pieza" style="margin:0;${r.a_cambio?'opacity:.6;cursor:not-allowed;':''}" oninput="reactivar('gc-${r.id}')">
+          <input type="number" step="0.01" id="cf-${r.id}" value="${r.a_cambio?0:cf}" ${(r.a_cambio||soloConsulta())?'readonly':''} placeholder="$ real de la pieza" style="margin:0;${r.a_cambio?'opacity:.6;cursor:not-allowed;':''}" oninput="reactivar('gc-${r.id}')">
         </div>
         <div style="flex:1.2;min-width:150px;">
           <label style="font-size:10px;">🏪 Proveedor <span style="color:var(--muted);font-weight:600;">(a quién se le paga)</span></label>
@@ -599,7 +599,6 @@ function abrir(id){
        ${cardsProv}`
     : '';
 
-  const consulta = soloConsulta();
   const faltaCosto=misRefs.filter(r=>!r.es_adicional && (r.costo_final==null || !(r.proveedor||'').trim())).length;
   const faltaFact=misRefs.filter(r=>{
     if(r.a_cambio) return false;             // el proveedor la repone: no lleva factura
