@@ -125,6 +125,9 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
   .sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px 12px; padding:12px 14px; border-right:none; border-bottom:1px solid var(--line); }
   .sidebar .brand{ width:100%; text-align:center; }
   .sidebar > div[style*="flex:1"], .sidebar > .grow{ display:none; }
+  /* El bloque de sesión debe verse siempre, también en tablet y celular */
+  .admin-tools{ width:100%; margin-top:8px; padding:10px 0 0; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .admin-tools .btn-logout{ margin:0 !important; width:auto; flex:0 1 auto; padding:9px 16px; font-size:12px; }
   .navi{ margin:0; padding:9px 14px; }
   .main{ overflow:visible; }
   header{ padding:12px 16px; flex-wrap:wrap; gap:6px; position:static; }
@@ -228,7 +231,7 @@ const siguiente=(est)=>{ const i=FLUJO.indexOf(est); return (i>=0&&i<FLUJO.lengt
 const contaEjecuta=(dest)=>CONTA.includes(dest);        // 10, 11 y 13 son suyos; el 12 es del generalista
 const NUM={'Auto Entregado':8,'Pendiente de Factura':9,'Contabilidad Emitió Factura':10,'Se Envía Factura a Telmex':11,'Factura Pagada':12};
 const CORTO={'Auto Entregado':'En camino','Pendiente de Factura':'Pendiente factura','Contabilidad Emitió Factura':'Factura emitida','Se Envía Factura a Telmex':'Factura enviada a TMX','Factura Pagada':'Factura pagada'};
-const COLOR={'Auto Entregado':'#8b93b8','Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9','Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37'};
+const COLOR={'Auto Entregado':'#ec4899','Pendiente de Factura':'#78350f','Contabilidad Emitió Factura':'#0284c7','Se Envía Factura a Telmex':'#10b981','Factura Pagada':'#ca8a04'};
 // Campos requeridos para avanzar
 const CAMPOS={'Contabilidad Emitió Factura':['num_factura','fecha_factura'],'Factura Pagada':['fecha_pago']};  // número y fecha al emitir; fecha de pago al cerrar
 const ETIQ={num_factura:'Número de factura',fecha_factura:'Fecha de factura',fecha_pago:'Fecha de pago',importe_pagado:'Importe pagado en la factura'};

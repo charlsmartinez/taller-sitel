@@ -167,6 +167,9 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
   .sidebar .brand{ width:100%; text-align:center; }
   .sidebar .brand h2{ font-size:15px; }
   .sidebar > div[style*="flex:1"], .sidebar > .grow{ display:none; }
+  /* El bloque de sesión debe verse siempre, también en tablet y celular */
+  .admin-tools{ width:100%; margin-top:8px; padding:10px 0 0; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .admin-tools .btn-logout{ margin:0 !important; width:auto; flex:0 1 auto; padding:9px 16px; font-size:12px; }
   .navi{ margin:0; padding:9px 14px; }
   .main{ overflow:visible; }
   header{ padding:12px 16px; flex-wrap:wrap; gap:6px; position:static; }
@@ -420,10 +423,9 @@ const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  entrega_trasera:'unidad lista: trasera',entrega_tablero:'unidad lista: tablero',entrega_motor:'unidad lista: motor',entrega_odometro:'unidad lista: odómetro'};
 // Campos requeridos por paso
 const CAMPOS={'Auto Entregado':['ot'],'Factura Pagada':['fecha_pago']};  // OT capturable desde paso 4; si ya está, no se vuelve a pedir
-const COLOR={'Diagnóstico':'#f5b800','Cotización':'#ff9800','Autorizado':'#3b82f6',
- 'Compra de Refacciones y Reparación':'#5f8bff','Reparado':'#00b8cc','Pendiente de OT':'#a97bff','Auto Entregado':'#ec4899',
- 'Pendiente de Factura':'#f59e0b','Contabilidad Emitió Factura':'#0ea5e9',
- 'Se Envía Factura a Telmex':'#12b886','Factura Pagada':'#d4af37','No Autorizado / Rechazado':'#ff5a6a','Garantía':'#a97bff','Cerrada por garantía':'#8b5cf6'};
+// Estatus con fondo claro: el texto va oscuro para que se lea
+const COLOR_TXT_OSCURO=["Diagnóstico", "Cotización", "Compra de Refacciones y Reparación", "Reparado", "Garantía", "Factura Pagada", "Se Envía Factura a Telmex"];
+const COLOR={'Diagnóstico':'#facc15','Cotización':'#f97316','Autorizado':'#3b82f6','Compra de Refacciones y Reparación':'#a3e635','Reparado':'#06b6d4','Pendiente de OT':'#8b5cf6','Auto Entregado':'#ec4899','Pendiente de Factura':'#78350f','Contabilidad Emitió Factura':'#0284c7','Se Envía Factura a Telmex':'#10b981','Factura Pagada':'#ca8a04','No Autorizado / Rechazado':'#ef4444','Garantía':'#f0abfc','Cerrada por garantía':'#581c87'};
 const ENTREGA=['frontal','lateralDer','lateralIzq','trasera','tablero','motor','odometro'];
 const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const norm=s=>(s==null?'':s.toString()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -843,7 +845,7 @@ function render(){
       <td><b>${s.vehiculo||'—'}</b><div class="sub">${s.placas||'—'} · ${s.serie?s.serie.slice(-6):'—'}</div></td>
       <td style="max-width:190px; color:var(--muted); font-size:11.5px;">${(s.diagnosticos||s.falla||'—').slice(0,70)}${(()=>{const a=alertaAutorizacion(s);return a?`<div style="margin-top:4px;color:#ff5a6a;font-weight:800;font-size:10px;">⏰ ${a.dias} días sin autorizar</div>`:'';})()}</td>
       <td style="font-weight:700; font-variant-numeric:tabular-nums;">${t.total?fmt(t.total):'—'}</td>
-      <td><span class="badge" style="background:${COLOR[s.estatus]||'#666'};${s.estatus==='Diagnóstico'?'color:#3a2e00;':''}">${nomPaso(s.estatus)}</span></td>
+      <td><span class="badge" style="background:${COLOR[s.estatus]||'#666'};${COLOR_TXT_OSCURO.includes(s.estatus)?'color:#20160a;':'color:#fff;'}">${nomPaso(s.estatus)}</span></td>
       <td>${acc}</td>`;
     tb.appendChild(tr);
   });
@@ -856,7 +858,8 @@ function abrir(id){
   const ev=evisDe(id); const evT={}; ev.forEach(e=>evT[e.tipo]=e.url);
   const t=totales(s); const p=document.getElementById('panel');
   const next=(!especial&&idx>=0&&idx<PIPELINE.length-1)?PIPELINE[idx+1]:null;
-  const gate=(next && !s.es_garantia)?(gatesDe(s,next)):[];   // garantía: mismo flujo, sin candados
+  // gatesDe() ya decide qué pide cada paso, incluso en garantía (los pasos que solo cruza devuelven vacío)
+  const gate=next?gatesDe(s,next):[];
   const faltanEv=gate.filter(g=>!evT[g]);
   // Requisitos que no son archivos
   const pendientes=[];
@@ -903,6 +906,9 @@ function abrir(id){
   const ent=['refacciones_usadas','refacciones_compradas','refacciones_montadas'].concat(ENTREGA.map(k=>'entrega_'+k));
   // Facturas y comprobantes que sube Compras (una por refacción)
   const factRef=Object.keys(evT).filter(k=>k.startsWith('factura_refaccion_'));
+  // Evidencias pedidas por garantía y versiones anteriores de fotos reemplazadas
+  const garEv=Object.keys(evT).filter(k=>k==='evidencia_mano_obra');
+  const previas=Object.keys(evT).filter(k=>k.startsWith('previa_'));
   const extras=Object.keys(evT).filter(k=>k.startsWith('extra_'));
   const piezas=Object.keys(evT).filter(k=>k.startsWith('pieza_'));
   // En el paso Reparado el super puede reemplazar las fotos que subió el mecánico
@@ -916,7 +922,8 @@ function abrir(id){
   const gitem=(k,cls)=>variantes(k).map((kk,i)=>gitemUno(kk,cls,k,i)).join('');
   const gitemUno=(k,cls,base,i)=>{
     const u=evT[k]; if(!u) return '';
-    const nom=((GNOM[base||k]||GNOM[k]||(k.startsWith('factura_refaccion_')?nombreFactRef(k):k))+((i||0)>0?' ('+((i||0)+1)+')':'')).replace('entrega: ','').replace('unidad lista: ','');
+    const kBase=k.startsWith('previa_')?k.split('__').slice(1).join('__'):k;
+    const nom=((GNOM[base||kBase]||GNOM[kBase]||(kBase.startsWith('factura_refaccion_')?nombreFactRef(kBase):kBase))+(k.startsWith('previa_')?' (anterior)':'')+((i||0)>0?' ('+((i||0)+1)+')':'')).replace('entrega: ','').replace('unidad lista: ','');
     const ext=extDe(u)||'jpg';
     const vista = esFoto(u)
       ? `<img src="${u}" onclick="lb('${u}')" onerror="this.outerHTML='<div class=\'doc\' title=\'El archivo ya no está disponible\' style=\'opacity:.55;cursor:default;\'><span class=\'i\'>\u26A0\uFE0F</span><span class=\'e\'>NO DISPONIBLE</span></div>'">`
@@ -1266,6 +1273,8 @@ function abrir(id){
     ${grupo('Evidencia de entrega',ent,'entrega')}
     ${grupo('Evidencia extra Supervisor',piezas,'pieza')}
     ${grupo('Fotos de pieza dañada',extras)}
+    ${s.es_garantia?grupo('🛡️ Evidencia pedida por garantía'+(s.garantia_tipo?' · '+GAR_TXT[s.garantia_tipo]:''), garEv.concat(s.garantia_tipo==='refaccion'?ent:[])):''}
+    ${grupo('Versiones anteriores (fotos reemplazadas)',previas)}
     ${extrasEditables}
     <div class="sect-h">Historial</div>
     ${hist.filter(h=>h.servicio_id===id).map(h=>`<div class="sub" style="padding:4px 0;">• ${h.estatus} <span style="opacity:.6;">— ${new Date(h.fecha).toLocaleString('es-MX')} ${h.usuario?('· '+h.usuario):''}</span></div>`).join('')||'<div class="sub">Sin historial.</div>'}`;
@@ -1304,11 +1313,16 @@ async function quitarEv(id, tipo){
 }
 async function reemplazarEv(id,tipo,input){
   const f=input.files&&input.files[0]; if(!f) return;
-  if(!confirm('¿Reemplazar esta foto por la nueva?')){ input.value=''; return; }
+  if(!confirm('¿Reemplazar esta foto por la nueva?\n\nLa anterior no se pierde: queda guardada como versión previa.')){ input.value=''; return; }
   try{
-    // borrar las anteriores de ese tipo (incluye numeradas) y subir la nueva
-    await sb.from('tm_evidencias').delete().eq('servicio_id',id).eq('tipo',tipo);
+    // La foto anterior NO se borra: se archiva como "previa_" para que siga visible.
+    const antes=evisDe(id).filter(e=>e.tipo===tipo||e.tipo.startsWith(tipo+'_'));
+    for(const e of antes){
+      const n=evisDe(id).filter(x=>x.tipo.startsWith('previa_')).length+1;
+      await sb.from('tm_evidencias').update({tipo:'previa_'+n+'__'+e.tipo}).eq('id',e.id);
+    }
     await subirFoto(id,tipo,f);
+    await sb.from('tm_historial').insert({servicio_id:id,estatus:'Evidencia reemplazada: '+(GNOM[tipo]||tipo),usuario:profile.nombre});
     await cargarTodo(); abrir(id);
   }catch(e){ alert('No se pudo reemplazar: '+(e.message||e)); }
 }
