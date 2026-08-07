@@ -58,12 +58,12 @@ label{ display:block; text-align:left; font-size:12px; font-weight:600; color:#c
 header{ background:rgba(18,20,40,.72); backdrop-filter:blur(10px); padding:16px 28px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:20; }
 header h1{ font-size:21px; font-weight:800; }
 .body{ padding:26px 28px; }
-.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
-.kpi{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-top:3px solid var(--gold); border-radius:14px; padding:16px; transition:.2s; }
+.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:9px; margin-bottom:18px; }
+.kpi{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-top:3px solid var(--gold); border-radius:14px; padding:11px 12px; transition:.2s; }
 .kpi:hover{ transform:translateY(-3px); box-shadow:0 16px 40px rgba(0,0,0,.4); }
 .kpi.a{ border-top-color:var(--warn);} .kpi.b{ border-top-color:var(--cyan);} .kpi.c{ border-top-color:var(--purple);} .kpi.d{ border-top-color:var(--ok);} .kpi.e{ border-top-color:var(--indigo);}
-.kpi .t{ font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; margin-bottom:6px; }
-.kpi .v{ font-size:23px; font-weight:800; font-variant-numeric:tabular-nums; }
+.kpi .t{ font-size:9px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:700; margin-bottom:4px; line-height:1.25; }
+.kpi .v{ font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.3px; }
 .board{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-radius:14px; padding:20px; }
 .board-top{ display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
 .board-top select,.board-top input{ margin-bottom:0; width:auto; min-width:170px; }
@@ -388,7 +388,8 @@ function render(){
   });
 
   // KPIs de Compras: pendientes de costo final, de factura, y comparativo cotizado vs real
-  const enCompras=plazaSet.filter(s=>s.estatus==='Compra de Refacciones y Reparación');
+  const enCompras=plazaSet.filter(s=>s.estatus==='Compra de Refacciones y Reparación'
+    && !(s.es_garantia && s.garantia_subtipo!=='reemplazo_costo'));
   let faltaCostoN=0, faltaFactN=0, completasN=0, refsAFacturar=0, totCot=0, totReal=0;
   plazaSet.forEach(s=>{
     const rs=refsDe(s.id);
@@ -415,6 +416,8 @@ function render(){
   document.getElementById('k-util').textContent=fmt(totReal-totCot);
 
   const rows=plazaSet.filter(s=>{
+    // Garantías sin compra (mano de obra o cambio con el proveedor) no le tocan a Compras
+    if(s.es_garantia && s.garantia_subtipo!=='reemplazo_costo') return false;
     const mE=fe==='Todos'||s.estatus===fe;
     const mC=fc==='Todos'||estadoCarga(s.id)===fc;
     const piezas=refsDe(s.id).map(r=>r.descripcion||'').join(' ');

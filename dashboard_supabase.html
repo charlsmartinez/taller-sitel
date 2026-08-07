@@ -50,12 +50,12 @@ label{ display:block; text-align:left; font-size:12px; font-weight:600; color:#c
 header{ background:rgba(18,20,40,.72); backdrop-filter:blur(10px); padding:16px 28px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:20; }
 header h1{ font-size:21px; font-weight:800; }
 .body{ padding:26px 28px; }
-.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:24px; }
-.kpi{ position:relative; background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-top:3px solid var(--cyan); border-radius:14px; padding:16px; transition:.2s; }
+.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:9px; margin-bottom:18px; }
+.kpi{ position:relative; background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-top:3px solid var(--cyan); border-radius:14px; padding:11px 12px; transition:.2s; }
 .kpi:hover{ transform:translateY(-3px); box-shadow:0 16px 40px rgba(0,0,0,.4); }
 .kpi.b{ border-top-color:var(--warn);} .kpi.c{ border-top-color:var(--indigo);} .kpi.d{ border-top-color:var(--pink);} .kpi.e{ border-top-color:var(--ok);} .kpi.f{ border-top-color:var(--danger);} .kpi.g{ border-top-color:var(--purple);}
-.kpi .t{ font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; margin-bottom:6px; }
-.kpi .v{ font-size:23px; font-weight:800; font-variant-numeric:tabular-nums; }
+.kpi .t{ font-size:9px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:700; margin-bottom:4px; line-height:1.25; }
+.kpi .v{ font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.3px; }
 .board{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-radius:14px; padding:20px; }
 .board-top{ display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
 .board-top select,.board-top input{ margin-bottom:0; width:auto; min-width:170px; }
@@ -249,7 +249,7 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="kpi b click" id="kpi-taller" onclick="verGrupo('taller')" title="Ver estos servicios"><div class="t">En Facturación</div><div class="v" id="k-taller">0</div><div class="sh">En trámite de factura</div></div>
       <div class="kpi d click" id="kpi-porfact" onclick="verGrupo('porfact')" title="Ver estos servicios"><div class="t">Factura Entregada</div><div class="v" id="k-porfact">0</div><div class="sh">Enviada a Telmex</div></div>
       <div class="kpi f dinero" id="kpi-costo"><div class="t">Refacciones Costo</div><div class="v" id="k-costo">$0.00</div><div class="sh">Lo que se pagó a proveedores</div></div>
-      <div class="kpi f dinero" id="kpi-refcli"><div class="t">Refacciones Facturadas a Cliente</div><div class="v" id="k-refcli">$0.00</div><div class="sh">Piezas con su aumento</div></div>
+      <div class="kpi f dinero" id="kpi-refcli"><div class="t">Refacciones Facturadas a Cliente</div><div class="v" id="k-refcli">$0.00</div><div class="sh">Piezas con su aumento · sin garantías</div></div>
       <div class="kpi g dinero" id="kpi-mo"><div class="t">Mano de Obra</div><div class="v" id="k-mo">$0.00</div><div class="sh">Trabajo cobrado</div></div>
       <div class="kpi e dinero" id="kpi-venta"><div class="t">Total Facturado</div><div class="v" id="k-venta">$0.00</div><div class="sh">Refacciones + mano de obra, sin IVA</div></div>
       <div class="kpi e dinero" id="kpi-utilref"><div class="t">Utilidad Refacciones</div><div class="v" id="k-utilref">$0.00</div><div class="sh">Facturado a cliente − costo</div></div>
@@ -350,8 +350,15 @@ const GATES_GAR={
   refaccion:['refacciones_montadas','entrega_frontal','entrega_lateralDer','entrega_lateralIzq','entrega_trasera','entrega_tablero','entrega_motor','entrega_odometro']
 };
 // Devuelve las evidencias que exige un paso, considerando si la orden es garantía
+// Pasos que la garantía solo cruza: no piden evidencia. El paso 7 sí (check e identificación).
+const GAR_SIN_GATE=['Autorizado','Compra de Refacciones y Reparación','Auto Entregado'];
 function gatesDe(s, paso){
-  if(s && s.es_garantia && paso==='Pendiente de OT' && s.garantia_tipo) return GATES_GAR[s.garantia_tipo]||[];
+  if(s && s.es_garantia){
+    if(paso==='Pendiente de OT' && s.garantia_tipo) return GATES_GAR[s.garantia_tipo]||[];
+    if(paso==='Pendiente de Factura') return GATES['Pendiente de Factura']||[];   // check e identificación
+    if(GAR_SIN_GATE.includes(paso)) return [];
+    return [];
+  }
   return GATES[paso]||[];
 }
 const GATES={
@@ -382,6 +389,13 @@ const TXT_BTN={
 // Nombre amigable del paso para los mensajes en pantalla
 const NOM_PASO={ 'Autorizado':'Autorización', 'Reparado':'Reparación', 'Auto Entregado':'Entregar auto', 'Compra de Refacciones y Reparación':'Compras' };
 const nomPaso=e=>NOM_PASO[e]||e;
+// Nombre legible de las facturas y comprobantes por refacción
+function nombreFactRef(k){
+  if(k.startsWith('factura_refaccion_pdf_'))  return 'factura de refacción';
+  if(k.startsWith('factura_refaccion_pago_')) return 'comprobante de pago';
+  if(k.startsWith('factura_refaccion_xml_'))  return 'XML de refacción';
+  return k;
+}
 const GNOM={cotizacion:'foto/PDF de la cotización elaborada',
  envio_cotizacion:'comprobante de envío de la cotización (Telmex/cliente)',
  autorizacion:'foto del correo de autorización',
@@ -731,7 +745,14 @@ function render(){
   const plazaSet=servicios.filter(s=>fp==='Todos'||norm(s.plaza)===norm(fp));
   const cnt=arr=>plazaSet.filter(s=>arr.includes(s.estatus)).length;
   // Mismos criterios que el detalle de la orden: costo REAL de piezas y montos SIN IVA.
-  let tc=0,tmo=0,tref=0; plazaSet.forEach(s=>{ const t=totales(s); tc+=t.costoRealInterno; tmo+=t.mo; tref+=t.piezasCliente; });
+  // Las garantías no se le facturan al cliente: no suman a refacciones facturadas ni a mano de obra.
+  // Su costo real sí se contabiliza, porque el dinero sí salió.
+  let tc=0,tmo=0,tref=0;
+  plazaSet.forEach(s=>{
+    const t=totales(s);
+    tc+=t.costoRealInterno;
+    if(!s.es_garantia){ tmo+=t.mo; tref+=t.piezasCliente; }
+  });
   tc=Math.round(tc*100)/100; tmo=Math.round(tmo*100)/100; tref=Math.round(tref*100)/100;
   const tv=Math.round((tref+tmo)*100)/100;          // total facturado, sin IVA
   const tur=Math.round((tref-tc)*100)/100;          // utilidad de refacciones
@@ -880,19 +901,27 @@ function abrir(id){
   const proc=['cotizacion','envio_cotizacion','autorizacion','ticket_compra','correo_ot_cliente','formato_entrega_firmado','identificacion_receptor'];
   const fact=['correo_recepcion_ot','factura_pdf','factura_xml','factura','acuse_recepcion_telmex','acuse_envio_factura','comprobante_pago'];
   const ent=['refacciones_usadas','refacciones_compradas','refacciones_montadas'].concat(ENTREGA.map(k=>'entrega_'+k));
+  // Facturas y comprobantes que sube Compras (una por refacción)
+  const factRef=Object.keys(evT).filter(k=>k.startsWith('factura_refaccion_'));
   const extras=Object.keys(evT).filter(k=>k.startsWith('extra_'));
   const piezas=Object.keys(evT).filter(k=>k.startsWith('pieza_'));
   // En el paso Reparado el super puede reemplazar las fotos que subió el mecánico
   const puedeReemplazar = editable && (s.estatus==='Reparado');
   const REEMPLAZABLES = ['refacciones_usadas','refacciones_compradas','refacciones_montadas'].concat(ENTREGA.map(k=>'entrega_'+k));
-  const gitem=(k,cls)=>{
+  // Una casilla puede tener varias fotos: se guardan como tipo, tipo_2, tipo_3...
+  // Esto devuelve todas las que existan de ese tipo, en orden.
+  const variantes=(k)=>Object.keys(evT)
+      .filter(x=>x===k || new RegExp('^'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'_\\d+$').test(x))
+      .sort((a,b)=>(a.match(/_(\d+)$/)?+a.match(/_(\d+)$/)[1]:1)-(b.match(/_(\d+)$/)?+b.match(/_(\d+)$/)[1]:1));
+  const gitem=(k,cls)=>variantes(k).map((kk,i)=>gitemUno(kk,cls,k,i)).join('');
+  const gitemUno=(k,cls,base,i)=>{
     const u=evT[k]; if(!u) return '';
-    const nom=(GNOM[k]||k).replace('entrega: ','').replace('unidad lista: ','');
+    const nom=((GNOM[base||k]||GNOM[k]||(k.startsWith('factura_refaccion_')?nombreFactRef(k):k))+((i||0)>0?' ('+((i||0)+1)+')':'')).replace('entrega: ','').replace('unidad lista: ','');
     const ext=extDe(u)||'jpg';
     const vista = esFoto(u)
-      ? `<img src="${u}" onclick="lb('${u}')" onerror="this.outerHTML='<a class=\'doc\' href=\'${u}\' target=\'_blank\' title=\'Abrir ${nom}\'><span class=\'i\'>📎</span><span class=\'e\'>VER</span></a>'">`
+      ? `<img src="${u}" onclick="lb('${u}')" onerror="this.outerHTML='<div class=\'doc\' title=\'El archivo ya no está disponible\' style=\'opacity:.55;cursor:default;\'><span class=\'i\'>\u26A0\uFE0F</span><span class=\'e\'>NO DISPONIBLE</span></div>'">`
       : `<a class="doc" href="${u}" target="_blank" title="Abrir ${nom}"><span class="i">${iconoDe(u)}</span><span class="e">${ext.toUpperCase()}</span></a>`;
-    const rep = (puedeReemplazar && REEMPLAZABLES.includes(k))
+    const rep = (puedeReemplazar && REEMPLAZABLES.includes(k) && !(i||0))
       ? `<label class="rep-ev" title="Reemplazar esta foto">✎<input type="file" accept="image/*" style="display:none;" onchange="reemplazarEv('${id}','${k}',this)"></label>` : '';
     return `<div class="gitem ${cls||''}">${vista}<a class="dl" href="${u}" download="${k}.${ext}" target="_blank" onclick="event.stopPropagation()" title="Descargar">⬇</a>${rep}<span class="tg">${nom}</span></div>`;
   };
@@ -1229,6 +1258,7 @@ function abrir(id){
     ${grupo('Evidencia de recepción',ini)}
     ${grupo('Evidencia del proceso',proc)}
     ${grupo('Evidencia de facturación',fact)}
+    ${grupo('Facturas y pagos de refacciones',factRef)}
     ${grupo('Evidencia de entrega',ent,'entrega')}
     ${grupo('Evidencia extra Supervisor',piezas,'pieza')}
     ${grupo('Fotos de pieza dañada',extras)}

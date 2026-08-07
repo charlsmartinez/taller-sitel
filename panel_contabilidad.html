@@ -58,12 +58,12 @@ label{ display:block; text-align:left; font-size:12px; font-weight:600; color:#c
 header{ background:rgba(18,20,40,.72); backdrop-filter:blur(10px); padding:16px 28px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:20; }
 header h1{ font-size:21px; font-weight:800; }
 .body{ padding:26px 28px; }
-.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
-.kpi{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-top:3px solid var(--gold); border-radius:14px; padding:16px; transition:.2s; }
+.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:9px; margin-bottom:18px; }
+.kpi{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-top:3px solid var(--gold); border-radius:14px; padding:11px 12px; transition:.2s; }
 .kpi:hover{ transform:translateY(-3px); box-shadow:0 16px 40px rgba(0,0,0,.4); }
 .kpi.a{ border-top-color:var(--warn);} .kpi.b{ border-top-color:var(--cyan);} .kpi.c{ border-top-color:var(--purple);} .kpi.d{ border-top-color:var(--ok);} .kpi.e{ border-top-color:var(--indigo);}
-.kpi .t{ font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600; margin-bottom:6px; }
-.kpi .v{ font-size:23px; font-weight:800; font-variant-numeric:tabular-nums; }
+.kpi .t{ font-size:9px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:700; margin-bottom:4px; line-height:1.25; }
+.kpi .v{ font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.3px; }
 .board{ background:linear-gradient(180deg,var(--surface),var(--surface2)); border:1px solid var(--line); border-radius:14px; padding:20px; }
 .board-top{ display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
 .board-top select,.board-top input{ margin-bottom:0; width:auto; min-width:170px; }
@@ -187,8 +187,8 @@ tbody tr{ transition:.15s; cursor:pointer; } tbody tr:hover{ background:rgba(255
       <div class="kpi a"><div class="t">Órdenes por Facturar</div><div class="v" id="k-pend">0</div></div>
       <div class="kpi b"><div class="t">Facturas Emitidas</div><div class="v" id="k-factn">0</div><div class="sh" id="k-factd">$0.00 en total</div></div>
       <div class="kpi c"><div class="t">Enviadas a Telmex</div><div class="v" id="k-env">0</div></div>
-      <div class="kpi a"><div class="t">Pendiente de Cobro</div><div class="v" id="k-xcobrard">$0.00</div><div class="sh" id="k-xcobrarn">0 facturas · 0 unidades</div></div>
-      <div class="kpi d"><div class="t">Órdenes Pagadas</div><div class="v" id="k-pag">0</div><div class="sh" id="k-cobrado">$0.00 cobrado</div></div>
+      <div class="kpi a"><div class="t">Facturas pendientes de cobro</div><div class="v" id="k-xcobrard">$0.00</div><div class="sh" id="k-xcobrarn">0 facturas · 0 unidades</div></div>
+      <div class="kpi d"><div class="t">Facturas pagadas</div><div class="v" id="k-pag">0</div><div class="sh" id="k-cobrado">$0.00 cobrado</div></div>
     </div>
     <div class="board">
       <div class="board-top">
